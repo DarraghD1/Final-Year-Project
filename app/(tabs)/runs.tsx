@@ -4,11 +4,9 @@ import {
   FlatList,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View
 } from "react-native";
-import { createRun, fetchRuns, Run } from "../api/runs";
+import { fetchRuns, Run } from "../../api/runs";
 
 type RunForm = {
   date: string;
@@ -33,8 +31,6 @@ export default function RunsScreen() {
     })();
   }, []);
 
-  const updateForm = (key: keyof RunForm, value: string) => setForm({ ...form, [key]: value });
-
   const validate = (f: RunForm) => {
     if (!f.date.trim()) return "Date is required";
     if (!f.distance.trim() || Number.isNaN(Number(f.distance))) return "Distance is required and must be a number";
@@ -48,62 +44,11 @@ export default function RunsScreen() {
       Alert.alert("Validation", err);
       return;
     }
-
-    const optimistic: Run = { id: `${form.date} • ${form.distance}km • ${form.duration}` };
-    setRuns((r) => [optimistic, ...r]);
-    setLoading(true);
-    try {
-      const created = await createRun({ id: optimistic.id });
-      // replace optimistic item with server item if server returns something different
-      setRuns((existing) => {
-        const withoutOptimistic = existing.filter((x) => x !== optimistic);
-        return [created, ...withoutOptimistic];
-      });
-      setForm({ date: "", distance: "", duration: "", notes: "" });
-    } catch (e) {
-      // rollback optimistic update
-      setRuns((existing) => existing.filter((r) => r !== optimistic));
-      Alert.alert("Error", "Failed to create run. Please try again.");
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Add a Run</Text>
-
-      <TextInput
-        placeholder="Date (YYYY-MM-DD)"
-        value={form.date}
-        onChangeText={(t) => updateForm("date", t)}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Distance (km)"
-        keyboardType="numeric"
-        value={form.distance}
-        onChangeText={(t) => updateForm("distance", t)}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Duration (mm:ss)"
-        value={form.duration}
-        onChangeText={(t) => updateForm("duration", t)}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Notes (optional)"
-        value={form.notes}
-        onChangeText={(t) => updateForm("notes", t)}
-        style={[styles.input, { height: 80 }]}
-        multiline
-      />
-
-      <TouchableOpacity onPress={addRun} style={styles.button} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? "Adding..." : "Add Run"}</Text>
-      </TouchableOpacity>
 
       <Text style={[styles.title, { marginTop: 20 }]}>Your Runs</Text>
       <FlatList
@@ -114,7 +59,7 @@ export default function RunsScreen() {
           </View>
         )}
         keyExtractor={(r, i) => r.id + i}
-        ListEmptyComponent={<Text style={{ color: "#666" }}>No runs yet — add your first one above.</Text>}
+        ListEmptyComponent={<Text style={{ color: "#666" }}>No runs yet — record your first one by pressing 'Record'</Text>}
       />
     </View>
   );

@@ -99,7 +99,7 @@ function RNCardContent({ children }: { children: React.ReactNode }) {
 
 /* ------------------------------- page ------------------------------- */
 
-export default function App() {
+export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const Img = (props: any) =>
