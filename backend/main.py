@@ -5,34 +5,58 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 
-DB_URL = "sqlite:///C:/Users/darra/FYP-DB/Database/running_app.db"
-engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
-
+DB_URL = "sqlite:////Users/darraghdonnelly/dev/Database/runner_db.db"
+engine = create_engine(DB_URL, connect_args={"check_same_thread": False}, echo=True)
 
 app = FastAPI(title="Running App API")
 
-class User(SQLModel, table=True):
-    __tablename__ = "User"
+
+class UserRun(SQLModel, table=True):
+    __tablename__ = "user_runs"
     id: Optional[int] = Field(default=None, primary_key=True)
-    firstName: str
-    lastName: str
-    email: str
-    age: int
+    user_id: int
+    distance: int  # in meters can be changed to a float later if we want to handle km
+    time: int      # seconds
+
+# Create tables before defining routes
+def init_db():
+    SQLModel.metadata.create_all(engine)
+
+init_db()
 
 def get_session():
     with Session(engine) as session:
         yield session
 
-@app.get("/users", response_model=List[User])
-def list_users(session: Session = Depends(get_session)):
-    return session.exec(select(User)).all()
+class CreateRun(BaseModel):
+    user_id: int
+    distance: int
+    time: int 
 
-@app.get("/health")
-def health():
-    return {"ok": True}
+@app.post("/runs", response_model=UserRun)
+def create_run(run: CreateRun, session: Session = Depends(get_session)):
+    db_run = UserRun(**run.model_dump())
+    session.add(db_run)
+    session.commit()
+    session.refresh(db_run)
+    return db_run
+
+@app.get("/runs", response_model=List[UserRun])
+def list_runs(session: Session = Depends(get_session)):
+    return session.exec(select(UserRun)).all()
+
+@app.get("/")
+def root():
+    return {"message": "Running App API is up"}
+
 
 origins = [
-    "http://localhost:8081"
+    "http://localhost:8081",
+    "http://localhost:3000",
+    "http://localhost:19000",  # Expo dev server
+    "http://localhost:19006",  # Expo web
+    "http://127.0.0.1:8081",
+    "http://127.0.0.1:3000",
 ]
 
 app.add_middleware(

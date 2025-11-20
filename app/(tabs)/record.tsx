@@ -4,6 +4,8 @@ import { RunStats } from "../../components/runStats";
 import { useLocation } from "../../hooks/useLocation";
 import { useStopwatch } from "../../hooks/useStopwatch";
 
+const API_BASE_URL = "http://localhost:8000";
+
 // Screen for recording run activity
 export default function RunRecorderScreen() {
 
@@ -78,12 +80,55 @@ export default function RunRecorderScreen() {
     unpause();
   };
 
-  const handleStopRun = () => {
+  const saveRunData = async (
+    locations: Array<any>,  // currently unused by backend
+    distance: number,
+    timeSeconds: number
+  ) => {
+  try {
+    // TODO: replace this with real logged-in user id when you have auth
+    const userId = 1;
+
+    const payload = {
+      user_id: userId,
+      distance: Math.round(distance), // backend expects int
+      time: Math.round(timeSeconds),  // backend expects int
+    };
+
+    const response = await fetch(`${API_BASE_URL}/runs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn("Failed to save run:", response.status, text);
+      return false;
+    }
+
+    const data = await response.json();
+    console.log("Run saved:", data);
+    return true;
+  } catch (error) {
+    console.error("Error saving run:", error);
+    return false;
+  }
+};
+
+  const handleStopRun = async () => {
     stopTracking();
     stop();
 
-    // ** add send locations, distance adn time to backend here
-  };
+    const ok = await saveRunData(locations, distance, seconds);
+
+    if (!ok) {
+      // optional: show an error UI / toast
+      // Alert.alert("Error", "Could not save your run. Please try again.");
+    }
+};
 
   const isRecording = isTracking;
 
@@ -99,19 +144,21 @@ export default function RunRecorderScreen() {
 
       <View style={styles.buttonsRow}>
       {status === 'idle' && (
-        <Button title="Start Run" onPress={start} />
+        <Button title="Start Run" onPress={handleStartRun} />
       )}
 
       {status === 'running' && (
-        <Button title="Pause Run" onPress={pause} />
+        <Button title="Pause Run" onPress={handlePauseRun} />
       )}
       
       {status === 'paused' && (
         <>
-          <Button title="Resume Run" onPress={unpause} />
-          <Button title="End Run" onPress={reset} />      
+          <Button title="Resume Run" onPress={handleUnpauseRun} />
+          <Button title="End Run" onPress={handleStopRun} />      
         </>
       )}
+
+
     </View>
     </View>       // map view can be added here later
   ); 
