@@ -1,13 +1,17 @@
 import React from "react";
 import { Button, Platform, StyleSheet, Text, View } from "react-native";
+import { API_BASE_URL } from "../../api/auth";
 import { RunStats } from "../../components/runStats";
+import { useAuth } from "../../context/AuthContext";
 import { useLocation } from "../../hooks/useLocation";
 import { useStopwatch } from "../../hooks/useStopwatch";
 
-const API_BASE_URL = "http://localhost:8000";
 
-// Screen for recording run activity
+/* Screen for recording run activity */
 export default function RunRecorderScreen() {
+
+  const { token } = useAuth();
+
 
   // import location tracking and stopwatch hooks
   const {
@@ -80,25 +84,28 @@ export default function RunRecorderScreen() {
     unpause();
   };
 
+  // send run info payload to backend and await response
   const saveRunData = async (
-    locations: Array<any>,  // currently unused by backend
+    locations: Array<any>,  // currently unused
     distance: number,
     timeSeconds: number
   ) => {
-  try {
-    // TODO: replace this with real logged-in user id when you have auth
-    const userId = 1;
+    if(!token){
+      console.warn("No authorisation token, run cannot be saved");
+      return false;
+    }
 
+try {
     const payload = {
-      user_id: userId,
-      distance: Math.round(distance), // backend expects int
-      time: Math.round(timeSeconds),  // backend expects int
+      distance: Math.round(distance),
+      time: Math.round(timeSeconds), 
     };
 
     const response = await fetch(`${API_BASE_URL}/runs`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
     });
@@ -125,14 +132,19 @@ export default function RunRecorderScreen() {
     const ok = await saveRunData(locations, distance, seconds);
 
     if (!ok) {
-      // optional: show an error UI / toast
-      // Alert.alert("Error", "Could not save your run. Please try again.");
+      return (
+      <View style={styles.center}>
+        <Text style={styles.warning}>
+          Error: Failed to save run
+        </Text>
+      </View>
+    );
     }
 };
 
   const isRecording = isTracking;
 
-  // basic UI
+  // basic UI for run tracking 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Run Tracker</Text>

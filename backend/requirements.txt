@@ -1,4 +1,8 @@
 fastapi
 uvicorn
 pydantic
+pydantic-extra-types
 sqlmodel
+passlib[bcrypt]
+bcrypt==4.0.1
+python-jose[cryptography]

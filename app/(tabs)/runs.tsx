@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   FlatList,
   StyleSheet,
   Text,
   View
 } from "react-native";
 import { fetchRuns, Run } from "../../api/runs";
+import { useAuth } from "../../context/AuthContext";
+
+/* Page for displaying users past runs */
 
 type RunForm = {
   date: string;
@@ -16,36 +18,42 @@ type RunForm = {
 };
 
 export default function RunsScreen() {
+  const { token } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
   const [form, setForm] = useState<RunForm>({ date: "", distance: "", duration: "", notes: "" });
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await fetchRuns();
-        setRuns(data.runs ?? []);
+        if (token) {
+          const data = await fetchRuns(token);
+          // return array of runs
+          setRuns(data ?? []);
+        }
       } catch (err) {
         console.warn("Failed to fetch runs", err);
       }
     })();
-  }, []);
+  }, [token]);
 
-  const validate = (f: RunForm) => {
-    if (!f.date.trim()) return "Date is required";
-    if (!f.distance.trim() || Number.isNaN(Number(f.distance))) return "Distance is required and must be a number";
-    if (!f.duration.trim()) return "Duration is required";
-    return null;
+  // display time clearly in hh:mm:ss format
+  const formatTime = (secs?: number) => {
+    if (!secs && secs !== 0) return "-";
+    const s = Number(secs);
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const seconds = s % 60;
+    if (hours > 0) return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   };
 
-  const addRun = async () => {
-    const err = validate(form);
-    if (err) {
-      Alert.alert("Validation", err);
-      return;
-    }
+  // convert distance to km
+  const toKilometer = (meters?: number) => {
+    if (meters == null) return "-";
+    return `${(meters / 1000).toFixed(2)} km`;
   };
 
+  // data presentation
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Add a Run</Text>
@@ -55,10 +63,12 @@ export default function RunsScreen() {
         data={runs}
         renderItem={({ item }) => (
           <View style={styles.runItem}>
-            <Text style={styles.runText}>{item.id}</Text>
+            <Text style={styles.runText}>Run #{String(item.id)}</Text>
+            <Text style={{ color: "#444", marginTop: 6 }}>Distance: {toKilometer(item.distance)}</Text>
+            <Text style={{ color: "#444" }}>Time: {formatTime(item.time)}</Text>
           </View>
         )}
-        keyExtractor={(r, i) => r.id + i}
+        keyExtractor={(r, i) => String(r.id) + String(i)}
         ListEmptyComponent={<Text style={{ color: "#666" }}>No runs yet — record your first one by pressing 'Record'</Text>}
       />
     </View>
