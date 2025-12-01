@@ -10,6 +10,13 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Optional, List
 from datetime import datetime, timedelta 
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+GOOGLE_WEATHER_API_KEY = os.environ["GOOGLE_WEATHER_API_KEY"]
+
 
 
 DB_URL = "sqlite:////Users/darraghdonnelly/dev/Database/runner_db.db"
