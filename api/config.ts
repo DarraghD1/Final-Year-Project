@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-// Find LAN host for Expo
+// find LAN host for Expo
 function inferHostFromExpo(): string | null {
   const debuggerHost =
     (Constants as any)?.manifest2?.extra?.expoClient?.hostUri ||
