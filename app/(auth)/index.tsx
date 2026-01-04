@@ -1,8 +1,7 @@
 import { useRouter } from "expo-router";
-import { Activity, Clock, Heart, MapPin, Menu, TrendingUp, Trophy, Users, } from "lucide-react-native";
+import { Activity, Menu } from "lucide-react-native";
 import React, { useState } from "react";
-import { Image, Linking, Modal, Platform, Pressable, ScrollView, Text, View, } from "react-native";
-import { ImageWithFallback as MaybeImageWithFallback } from "../../components/figma/ImageWithFallback";
+import { Linking, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
 
 
 function RNButton({
@@ -57,60 +56,11 @@ function RNButton({
   );
 }
 
-function RNBadge({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        alignSelf: "flex-start",
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
-        backgroundColor: "#ffedd5",
-      }}
-    >
-      <Text style={{ color: "#c2410c", fontSize: 12, fontWeight: "600" }}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function RNCard({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: "#e5e7eb",
-        backgroundColor: "#fff",
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 2,
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-function RNCardContent({ children }: { children: React.ReactNode }) {
-  return <View style={{ padding: 16 }}>{children}</View>;
-}
-
 /* ------------------------------- page ------------------------------- */
 
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
-
-  const Img = (props: any) =>
-    
-    MaybeImageWithFallback ? (
-      <MaybeImageWithFallback {...props} />
-    ) : (
-      <Image {...props} />
-    );
 
   const LinkText = ({
     href,
@@ -145,7 +95,7 @@ export default function Home() {
             <Text style={{ fontSize: 18, fontWeight: "600" }}>PACER</Text>
           </View>
 
-          {/* Right side actions (mobile) */}
+          {/* Right side actions  */}
           <Pressable onPress={() => setMobileMenuOpen(true)} style={{ padding: 8 }}>
             <Menu size={24} />
           </Pressable>
@@ -153,11 +103,7 @@ export default function Home() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
-        {/* Hero Section */}
         <View style={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 12 }}>
-          <View style={{ marginBottom: 12 }}>
-            <RNBadge>Track. Analyze. Improve.</RNBadge>
-          </View>
 
           <Text
             style={{
@@ -168,147 +114,14 @@ export default function Home() {
               color: "#111827",
             }}
           >
-            The Social Network for Athletes
+            Gain Insight For a Better Run
           </Text>
-
-          <Text style={{ color: "#6b7280", marginBottom: 16 }}>
-            Track your runs, connect with a community of millions of runners, and
-            get the motivation you need to reach your goals.
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <RNButton onPress={() => router.push("/signup")}>Get Started Free</RNButton>
-            <RNButton variant="outline" onPress={() => {}}>
-              Download App
-            </RNButton>
           </View>
-
-          {/* faint background image */}
-          <View style={{ marginTop: 24, borderRadius: 16, overflow: "hidden" }}>
-            <Img
-              source={{
-                uri:
-                  "https://images.unsplash.com/photo-1609726866022-1ce719b4727b?q=80&w=1080",
-              }}
-              resizeMode="cover"
-              style={{ width: "100%", height: 180, opacity: 0.1 }}
-            />
-          </View>
-
-          {/* hero stats */}
-          <View
-            style={{
-              marginTop: 20,
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            {[
-              ["100M+", "Athletes"],
-              ["195", "Countries"],
-              ["3B+", "Activities"],
-            ].map(([big, small]) => (
-              <View key={big} style={{ alignItems: "center", flex: 1 }}>
-                <Text style={{ fontSize: 20, fontWeight: "700", color: "#111827" }}>
-                  {big}
-                </Text>
-                <Text style={{ fontSize: 12, color: "#6b7280" }}>{small}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Features grid */}
-        <View style={{ paddingHorizontal: 16, paddingVertical: 16, backgroundColor: "#f9fafb" }}>
-          <View style={{ alignItems: "center", marginBottom: 16 }}>
-            <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 6 }}>
-              Everything You Need to Run Better
-            </Text>
-            <Text style={{ color: "#6b7280", textAlign: "center", maxWidth: 560 }}>
-              Get detailed insights into your performance, connect with friends,
-              and stay motivated every step of the way.
-            </Text>
-          </View>
-
-          <View style={{ gap: 12 }}>
-            {[
-              {
-                icon: <TrendingUp size={24} color="#f97316" />,
-                title: "Advanced Analytics",
-                body:
-                  "Get detailed metrics on pace, distance, elevation, heart rate, and more to understand your performance.",
-              },
-              {
-                icon: <MapPin size={24} color="#3b82f6" />,
-                title: "Route Discovery",
-                body:
-                  "Explore new running routes, save your favorites, and share them with the community.",
-              },
-              {
-                icon: <Users size={24} color="#22c55e" />,
-                title: "Social Connection",
-                body:
-                  "Follow friends, join clubs, participate in challenges, and celebrate achievements together.",
-              },
-              {
-                icon: <Trophy size={24} color="#a855f7" />,
-                title: "Challenges & Goals",
-                body:
-                  "Set personal goals, compete in challenges, and earn achievements as you progress.",
-              },
-              {
-                icon: <Heart size={24} color="#ef4444" />,
-                title: "Health Tracking",
-                body:
-                  "Monitor heart rate, calories burned, and sync with your favorite fitness devices.",
-              },
-              {
-                icon: <Clock size={24} color="#ca8a04" />,
-                title: "Training Plans",
-                body:
-                  "Access personalized training plans for 5K, 10K, half marathon, and marathon distances.",
-              },
-            ].map(({ icon, title, body }) => (
-              <RNCard key={title}>
-                <RNCardContent>
-                  <View
-                    style={{
-                      height: 48,
-                      width: 48,
-                      borderRadius: 999,
-                      backgroundColor: "#fff7ed",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 12,
-                    }}
-                  >
-                    {icon}
-                  </View>
-                  <Text style={{ fontWeight: "700", fontSize: 16, marginBottom: 6 }}>
-                    {title}
-                  </Text>
-                  <Text style={{ color: "#6b7280" }}>{body}</Text>
-                </RNCardContent>
-              </RNCard>
-            ))}
-          </View>
-        </View>
 
         {/* CTA */}
         <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: "center" }}>
           <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 8, textAlign: "center" }}>
-            Ready to Start Your Journey?
-          </Text>
-          <Text
-            style={{
-              color: "#6b7280",
-              textAlign: "center",
-              marginBottom: 16,
-              maxWidth: 560,
-            }}
-          >
-            Join millions of runners tracking their progress, connecting with friends, and reaching
-            their goals.
+            Ready to Start?
           </Text>
 
           <View style={{ flexDirection: "row", gap: 12 }}>
@@ -322,7 +135,7 @@ export default function Home() {
           </View>
 
           <Text style={{ marginTop: 12, color: "#6b7280", fontSize: 12, textAlign: "center" }}>
-            Free to join. Available on iOS and Android.
+            Free to join. Available on iOS.
           </Text>
         </View>
 
@@ -334,7 +147,7 @@ export default function Home() {
               <Text style={{ color: "white", fontWeight: "600" }}>PACER</Text>
             </View>
             <Text style={{ color: "#d1d5db", fontSize: 12 }}>
-              The social network for athletes around the world.
+              Track your runs, get predictions and achieve your goals.
             </Text>
           </View>
 
@@ -346,7 +159,7 @@ export default function Home() {
             }}
           />
           <Text style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}>
-            © 2025 PACER. All rights reserved.
+            2025 PACER.
           </Text>
         </View>
       </ScrollView>
@@ -372,9 +185,6 @@ export default function Home() {
             }}
           >
             <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 12 }}>Menu</Text>
-            <LinkText href="#features">Features</LinkText>
-            <LinkText href="#community">Community</LinkText>
-            <LinkText href="#pricing">Pricing</LinkText>
 
             <View style={{ height: 1, backgroundColor: "#e5e7eb", marginVertical: 12 }} />
 
