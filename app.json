@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.fyprunningapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +23,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.anonymous.fyprunningapp"
     },
     "web": {
       "output": "static",
@@ -39,13 +48,24 @@
           }
         }
       ],
-      "expo-web-browser", 
-
-      "expo-location"
+      "expo-web-browser",
+      "expo-location",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsVersion": "11.17.1"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0a99394a-d5ae-4075-bc59-87949e38b717"
+      }
     }
   }
 }
