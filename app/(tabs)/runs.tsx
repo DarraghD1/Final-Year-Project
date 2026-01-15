@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -20,21 +20,30 @@ type RunForm = {
 export default function RunsScreen() {
   const { token } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [form, setForm] = useState<RunForm>({ date: "", distance: "", duration: "", notes: "" });
 
-  useEffect(() => {
-    (async () => {
-      try {
-        if (token) {
-          const data = await fetchRuns(token);
-          // return array of runs
-          setRuns(data ?? []);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch runs", err);
-      }
-    })();
+  const loadRuns = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchRuns(token);
+      // return array of runs
+      setRuns(data ?? []);
+    } catch (err) {
+      console.warn("Failed to fetch runs", err);
+    }
   }, [token]);
+
+  useEffect(() => {
+    loadRuns();
+  }, [loadRuns]);
+
+  // refreshing added to update run list
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRuns();
+    setRefreshing(false);
+  }, [loadRuns]);
 
   // display time clearly in hh:mm:ss format
   const formatTime = (secs?: number) => {
@@ -61,6 +70,8 @@ export default function RunsScreen() {
       <Text style={[styles.title, { marginTop: 20 }]}>Your Runs</Text>
       <FlatList
         data={runs}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         renderItem={({ item }) => (
           <View style={styles.runItem}>
             <Text style={styles.runText}>Run #{String(item.id)}</Text>

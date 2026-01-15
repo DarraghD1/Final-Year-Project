@@ -1,3 +1,4 @@
+import MapboxGL from '@rnmapbox/maps';
 import React from "react";
 import { Button, Platform, StyleSheet, Text, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
@@ -12,6 +13,7 @@ export default function RunRecorderScreen() {
 
   const { token } = useAuth();
 
+  MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
 
   // import location tracking and stopwatch hooks
   const {
@@ -143,6 +145,8 @@ try {
 };
 
   const isRecording = isTracking;
+  const shouldFollowUser = hasPermission === true;
+  const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
 
   // basic UI for run tracking 
   return (
@@ -153,6 +157,44 @@ try {
         timeSeconds={seconds}
         distanceMeters={distance}
       />
+
+  {(Platform.OS === 'ios' || Platform.OS === 'android') && (
+        <View style={styles.mapWrap}>
+
+          <MapboxGL.MapView style={styles.map}>
+            <MapboxGL.Camera
+              zoomLevel={14}
+              followUserLocation={shouldFollowUser}
+              followUserMode={MapboxGL.UserTrackingModes.Follow}
+              centerCoordinate={
+                locations && locations.length > 0
+                  ? [locations[locations.length - 1].coords.longitude, locations[locations.length - 1].coords.latitude]
+                  : [0, 0]
+              }
+            />
+
+                {shouldFollowUser && <MapboxGL.UserLocation visible={true} />}
+
+                {shouldShowRoute && locations.length > 1 && (
+                  <MapboxGL.ShapeSource
+                    id="routeSource"
+                    shape={{ type: 'Feature', geometry: { type: 'LineString', coordinates: locations.map((l: any) => [l.coords.longitude, l.coords.latitude]) }, properties: {} }}
+                  >
+                    <MapboxGL.LineLayer id="routeLine" style={{ lineColor: '#00ff6eff', lineWidth: 6 }} />
+                  </MapboxGL.ShapeSource>
+                )}
+
+                {shouldShowRoute && (
+                  <MapboxGL.PointAnnotation
+                    id="current"
+                    coordinate={[locations[locations.length - 1].coords.longitude, locations[locations.length - 1].coords.latitude]}
+                  >
+                    <View style={styles.currentMarker} />
+                  </MapboxGL.PointAnnotation>
+                )}
+          </MapboxGL.MapView>
+        </View>
+      )}
 
       <View style={styles.buttonsRow}>
       {status === 'idle' && (
@@ -197,6 +239,24 @@ const styles = StyleSheet.create({
     color: "#e5e7eb",
     textAlign: "center",
     marginBottom: 24,
+  },
+  mapWrap: {
+    height: 300,
+    marginVertical: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+    height: '100%',
+  },
+  currentMarker: {
+    width: 20,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1893ffff',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   buttonsRow: {
     marginTop: "auto",

@@ -1,22 +1,6 @@
-import { Platform } from "react-native";
+import { API_BASE } from "./config";
 
-let API_BASE_URL: string;
-
-if (__DEV__) {
-  if (Platform.OS === "ios") {
-    // iOS simulator points to Mac
-    API_BASE_URL = "http://127.0.0.1:8000";
-  } else if (Platform.OS === "android") {
-    // Android emulator 
-    API_BASE_URL = "http://10.0.2.2:8000";
-  } else {
-    // web
-    API_BASE_URL = "http://localhost:8000";
-  }
-} else {
-  // production
-  API_BASE_URL = "https://your-api-domain.com";
-}
+const API_BASE_URL = API_BASE;
 
 export { API_BASE_URL };
 
