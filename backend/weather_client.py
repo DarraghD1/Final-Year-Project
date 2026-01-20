@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-WEATHER_API_URL = "https://weather.googleapis.com/v1/history/hours:lookup"
+WEATHER_HISTORY_API_URL = "https://weather.googleapis.com/v1/history/hours:lookup"
+WEATHER_CURRENT_API_URL = "https://weather.googleapis.com/v1/currentConditions:lookup"
 GOOGLE_WEATHER_API_KEY = os.environ["GOOGLE_WEATHER_API_KEY"]
 
 def validate_args(lat: float, lon: float, hours: int) -> None:
@@ -25,6 +26,18 @@ def fetch_weather(lat: float, lon: float, hours: int):
         "location.longitude": lon,
         "hours": hours,
     }
-    resp = httpx.get(WEATHER_API_URL, params=params)
+    resp = httpx.get(WEATHER_HISTORY_API_URL, params=params)
+    resp.raise_for_status()
+    return resp.json()
+
+# retrieve current weather for location
+def fetch_current_weather(lat: float, lon: float):
+    validate_args(lat, lon, 1)
+    params = {
+        "key": GOOGLE_WEATHER_API_KEY,
+        "location.latitude": lat,
+        "location.longitude": lon,
+    }
+    resp = httpx.get(WEATHER_CURRENT_API_URL, params=params)
     resp.raise_for_status()
     return resp.json()

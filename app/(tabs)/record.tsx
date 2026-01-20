@@ -1,4 +1,5 @@
 import MapboxGL from '@rnmapbox/maps';
+import * as Location from "expo-location";
 import React from "react";
 import { Button, Platform, StyleSheet, Text, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
@@ -88,7 +89,7 @@ export default function RunRecorderScreen() {
 
   // send run info payload to backend and await response
   const saveRunData = async (
-    locations: Array<any>,  // currently unused
+    locations: Array<any>,
     distance: number,
     timeSeconds: number
   ) => {
@@ -98,9 +99,29 @@ export default function RunRecorderScreen() {
     }
 
 try {
+    const lastLocation =
+      locations && locations.length > 0 ? locations[locations.length - 1] : null;
+
+    let lat = lastLocation?.coords?.latitude;
+    let lon = lastLocation?.coords?.longitude;
+
+    if ((lat == null || lon == null) && hasPermission) {
+      try {
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        lat = current.coords.latitude;
+        lon = current.coords.longitude;
+      } catch (err) {
+        console.warn("Unable to get current location for weather", err);
+      }
+    }
+
     const payload = {
       distance: Math.round(distance),
-      time: Math.round(timeSeconds), 
+      time: Math.round(timeSeconds),
+      lat,
+      lon,
     };
 
     const response = await fetch(`${API_BASE_URL}/runs`, {

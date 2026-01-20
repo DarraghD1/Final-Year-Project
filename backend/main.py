@@ -14,7 +14,7 @@ from auth_utilities import (
     get_user_by_email,
     get_current_user,
 )
-from weather_client import fetch_weather
+from weather_client import fetch_weather, fetch_current_weather
 
 app = FastAPI(title="Running App API")
 
@@ -63,10 +63,31 @@ def create_run(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    weather_temp = None
+    weather_precip_mm = None
+    weather_humidity= None
+    weather_wind_kph = None
+
+    if run.lat is not None and run.lon is not None:
+        try:
+            weather = fetch_current_weather(run.lat, run.lon)
+            (
+                weather_temp,
+                weather_precip_mm,
+                weather_humidity,
+                weather_wind_kph,
+            ) = extract_weather_summary(weather)
+        except Exception as exc:
+            print(f"Weather lookup failed: {exc}")
+
     db_run = UserRun(
         user_id=current_user.id,
         distance=run.distance,
         time=run.time,
+        weather_temp=weather_temp,
+        weather_precip_mm=weather_precip_mm,
+        weather_humidity=weather_humidity,
+        weather_wind_kph=weather_wind_kph,
     )
     session.add(db_run)
     session.commit()
@@ -83,7 +104,45 @@ def list_runs(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
 
-# ========== weather route ==========
+# ========== extracting weather payload ==========
+
+# helper to extract numeric val from weather response
+def _num(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        for key in ("value", "degrees", "celsius", "kmh", "kph", "amount", "speed", "percent"):
+            if key in value:
+                return _num(value[key])
+    return None
+
+def extract_weather_summary(payload: dict):
+    source = payload.get("currentConditions") if isinstance(payload.get("currentConditions"), dict) else payload
+
+    # extract relevant weather fields from payload
+    temp_val = _num(source.get("temperature") or source.get("temperatureCelsius") or source.get("temperatureC"))
+    humidity_val = _num(source.get("relativeHumidity") or source.get("humidity"))
+
+    precip_val = None
+    precip_field = source.get("precipitation")
+    precip_val = _num(
+            precip_field.get("amount")
+            or precip_field.get("intensity")
+            or precip_field.get("rate")
+            or precip_field.get("probability")
+        )
+
+    wind_val = None
+    wind_field = source.get("wind")
+    if isinstance(wind_field, dict) and "speed" in wind_field:
+        wind_val = _num(wind_field.get("speed"))
+    else:
+        wind_val = _num(source.get("windSpeed") or wind_field)
+
+    return temp_val, precip_val, humidity_val, wind_val
+
 
 # return past n hours weather for a given location
 @app.get("/weather")

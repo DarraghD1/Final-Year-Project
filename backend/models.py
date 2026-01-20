@@ -15,3 +15,7 @@ class UserRun(SQLModel, table=True):
     user_id: int
     distance: int  # meters
     time: int      # seconds
+    weather_temp: Optional[float] = None        # celsius
+    weather_precip_mm: Optional[float] = None   # mm
+    weather_humidity: Optional[float] = None    # as percentage
+    weather_wind_kph: Optional[float] = None

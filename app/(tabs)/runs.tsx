@@ -77,10 +77,12 @@ export default function RunsScreen() {
             <Text style={styles.runText}>Run #{String(item.id)}</Text>
             <Text style={{ color: "#444", marginTop: 6 }}>Distance: {toKilometer(item.distance)}</Text>
             <Text style={{ color: "#444" }}>Time: {formatTime(item.time)}</Text>
+            <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
+            <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
           </View>
         )}
         keyExtractor={(r, i) => String(r.id) + String(i)}
-        ListEmptyComponent={<Text style={{ color: "#666" }}>No runs yet — record your first one by pressing 'Record'</Text>}
+        ListEmptyComponent={<Text style={{ color: "#3d3d3dff" }}>No runs yet — record your first one by pressing 'Record'</Text>}
       />
     </View>
   );

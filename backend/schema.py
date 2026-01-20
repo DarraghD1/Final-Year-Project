@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 # request and response models dor api
@@ -23,3 +24,5 @@ class LoginRequest(BaseModel):
 class CreateRun(BaseModel):
     distance: int
     time: int
+    lat: Optional[float] = None
+    lon: Optional[float] = None
