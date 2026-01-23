@@ -24,5 +24,6 @@ class LoginRequest(BaseModel):
 class CreateRun(BaseModel):
     distance: int
     time: int
+    elevation_gain: Optional[float] = None
     lat: Optional[float] = None
     lon: Optional[float] = None

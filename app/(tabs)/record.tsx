@@ -13,7 +13,8 @@ import { useStopwatch } from "../../hooks/useStopwatch";
 export default function RunRecorderScreen() {
 
   const { token } = useAuth();
-
+  
+  // public access token
   MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
 
   // import location tracking and stopwatch hooks
@@ -87,6 +88,19 @@ export default function RunRecorderScreen() {
     unpause();
   };
 
+  // compute elevation gain from points taken on the run
+  const getElevationGain = (samples: Array<Location.LocationObject>) => {
+    const elevations = samples
+      .map((sample) => sample.coords?.altitude)
+      .filter((altitude): altitude is number => typeof altitude === "number" && Number.isFinite(altitude));
+
+    if (elevations.length < 2) return null;
+
+    const minElevation = Math.min(...elevations);
+    const maxElevation = Math.max(...elevations);
+    return maxElevation - minElevation;
+  };
+
   // send run info payload to backend and await response
   const saveRunData = async (
     locations: Array<any>,
@@ -120,6 +134,10 @@ try {
     const payload = {
       distance: Math.round(distance),
       time: Math.round(timeSeconds),
+      elevation_gain: (() => {
+        const gain = getElevationGain(locations);
+        return gain == null ? null : Math.round(gain);
+      })(),
       lat,
       lon,
     };
@@ -168,6 +186,7 @@ try {
   const isRecording = isTracking;
   const shouldFollowUser = hasPermission === true;
   const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
+  const elevationGain = getElevationGain(locations);
 
   // basic UI for run tracking 
   return (
@@ -177,6 +196,7 @@ try {
       <RunStats
         timeSeconds={seconds}
         distanceMeters={distance}
+        elevationGainMeters={elevationGain}
       />
 
   {(Platform.OS === 'ios' || Platform.OS === 'android') && (

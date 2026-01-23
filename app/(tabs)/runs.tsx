@@ -62,6 +62,11 @@ export default function RunsScreen() {
     return `${(meters / 1000).toFixed(2)} km`;
   };
 
+  const toElevation = (meters?: number | null) => {
+    if (meters == null) return "-";
+    return `${Math.round(meters)} m`;
+  };
+
   // data presentation
   return (
     <View style={styles.container}>
@@ -77,6 +82,7 @@ export default function RunsScreen() {
             <Text style={styles.runText}>Run #{String(item.id)}</Text>
             <Text style={{ color: "#444", marginTop: 6 }}>Distance: {toKilometer(item.distance)}</Text>
             <Text style={{ color: "#444" }}>Time: {formatTime(item.time)}</Text>
+            <Text style={{ color: "#444" }}>Elevation: {toElevation(item.elevation_gain)}</Text>
             <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
             <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
           </View>

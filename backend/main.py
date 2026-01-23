@@ -84,6 +84,7 @@ def create_run(
         user_id=current_user.id,
         distance=run.distance,
         time=run.time,
+        elevation_gain=run.elevation_gain,
         weather_temp=weather_temp,
         weather_precip_mm=weather_precip_mm,
         weather_humidity=weather_humidity,
