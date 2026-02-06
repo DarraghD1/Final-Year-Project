@@ -26,6 +26,7 @@ export default function SignInScreen({ navigation }: any) {
     }
   };
 
+  // signup page wiht email and password inputs
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Register</Text>

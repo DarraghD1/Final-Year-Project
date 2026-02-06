@@ -164,7 +164,7 @@ export default function Home() {
         </View>
       </ScrollView>
 
-      {/* Mobile menu (Sheet replacement) */}
+      {/* Mobile menu */}
       <Modal
         visible={mobileMenuOpen}
         transparent

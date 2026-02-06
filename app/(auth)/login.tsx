@@ -24,6 +24,7 @@ export default function LoginScreen() {
     }
   };
 
+  // login page for existing users
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Log in</Text>

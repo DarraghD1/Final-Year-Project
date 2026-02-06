@@ -13,6 +13,7 @@ export type Run = {
   weather_wind_kph?: number | null;
 };
 
+// takes in run data stores it under new run in db
 export async function createRun(
   run: { distance: number; time: number; elevation_gain?: number; lat?: number; lon?: number },
   token: string

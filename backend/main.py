@@ -3,10 +3,12 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from typing import List
+import joblib
+from pathlib import Path
 
 from database import init_db, get_session
 from models import User, UserRun
-from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun
+from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse
 from auth_utilities import (
     get_password_hash,
     verify_password,
@@ -16,6 +18,7 @@ from auth_utilities import (
 )
 from weather_client import fetch_weather, fetch_current_weather
 
+# main app instance
 app = FastAPI(title="Running App API")
 
 # initialise database
@@ -32,6 +35,7 @@ def signup(user_in: UserCreate, session: Session = Depends(get_session)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email is already linked to an account.",
         )
+    # create new user with hashed pwrd and store in db
     user = User(
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
@@ -68,6 +72,7 @@ def create_run(
     weather_humidity= None
     weather_wind_kph = None
 
+    # fetch relevant weather data given we have long and lat
     if run.lat is not None and run.lon is not None:
         try:
             weather = fetch_current_weather(run.lat, run.lon)
@@ -80,6 +85,7 @@ def create_run(
         except Exception as exc:
             print(f"Weather lookup failed: {exc}")
 
+    # create run record in db
     db_run = UserRun(
         user_id=current_user.id,
         distance=run.distance,
@@ -95,7 +101,7 @@ def create_run(
     session.refresh(db_run)
     return db_run
 
-# list current users past runs
+# list current users past runs from db
 @app.get("/runs", response_model=List[UserRun])
 def list_runs(
     session: Session = Depends(get_session),
@@ -149,6 +155,46 @@ def extract_weather_summary(payload: dict):
 @app.get("/weather")
 def get_weather(lat: float, lon: float, hours: int):
     return fetch_weather(lat, lon, hours)
+
+
+# ========== ML prediction ==========
+
+# helper loads user-specific ml model from disk
+def _load_user_model(user_id: int):
+    model_path = Path(__file__).resolve().parent / "ml_models" / f"user_{user_id}_linreg.joblib"
+    if not model_path.exists():
+        return None
+    return joblib.load(model_path)
+
+# predict run time
+@app.post("/ml/predict", response_model=PredictResponse)
+def predict_run_time(
+    payload: PredictRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.distance <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Distance must be greater than zero.",
+        )
+
+    model = _load_user_model(current_user.id)
+    if model is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Model not trained for this user.",
+        )
+
+    # conversions and prediction
+    distance_km = payload.distance / 1000 if payload.distance > 1000 else payload.distance
+    predicted_minutes = float(model.predict([[distance_km]])[0])
+    predicted_seconds = predicted_minutes * 60
+    if predicted_seconds < 0:
+        predicted_seconds = 0
+    predicted_seconds = int(round(predicted_seconds))
+    return PredictResponse(predicted_time_seconds=predicted_seconds)
+
 
 # ========== root and CORS ==========
 

@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 
+// redirect user to auth or main app based on their auth status
 function RootLayoutContent() {
   const { token, loading } = useAuth();
   const router = useRouter();

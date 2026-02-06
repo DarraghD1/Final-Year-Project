@@ -4,6 +4,7 @@ const API_BASE_URL = API_BASE;
 
 export { API_BASE_URL };
 
+// API for handling signup
 export async function signUp(email: string, password: string) {
   const response = await fetch(`${API_BASE_URL}/auth/signup`, {
     method: "POST",
@@ -17,7 +18,7 @@ export async function signUp(email: string, password: string) {
   }
   return response.json(); // { id, email }
 }
-
+// API for handling login
 export async function logIn(email: string, password: string) {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",

@@ -25,6 +25,7 @@ def get_password_hash(password: str) -> str:
 def verify_password(password: str, hashed_password: str) -> bool:
     return pwd_context.verify(password, hashed_password)
 
+# create JWT token for user
 def create_access_token(
     data: dict, expires_delta: Optional[timedelta] = None
 ) -> str:
@@ -39,6 +40,7 @@ def create_access_token(
 def get_user_by_email(session: Session, email: str) -> Optional[User]:
     return session.exec(select(User).where(User.email == email)).first()
 
+# get current user from JWT token
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),

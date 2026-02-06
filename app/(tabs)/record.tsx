@@ -14,7 +14,7 @@ export default function RunRecorderScreen() {
 
   const { token } = useAuth();
   
-  // public access token
+  // public access token for mapbox
   MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
 
   // import location tracking and stopwatch hooks
@@ -47,7 +47,7 @@ export default function RunRecorderScreen() {
     );
   }
 
-  // permission UI
+  // location permission UI
   if (hasPermission === null) {
     return (
       <View style={styles.center}>
@@ -88,7 +88,7 @@ export default function RunRecorderScreen() {
     unpause();
   };
 
-  // compute elevation gain from points taken on the run
+  // compute elevation gain from points taken on the run using altitude data from loc samples **Accuracy needs to be improved
   const getElevationGain = (samples: Array<Location.LocationObject>) => {
     const elevations = samples
       .map((sample) => sample.coords?.altitude)
@@ -96,6 +96,7 @@ export default function RunRecorderScreen() {
 
     if (elevations.length < 2) return null;
 
+    // return final elevation gain via simple max - min method
     const minElevation = Math.min(...elevations);
     const maxElevation = Math.max(...elevations);
     return maxElevation - minElevation;
@@ -112,6 +113,7 @@ export default function RunRecorderScreen() {
       return false;
     }
 
+    // get last long & lat for weather data, handle missing coords 
 try {
     const lastLocation =
       locations && locations.length > 0 ? locations[locations.length - 1] : null;
@@ -119,6 +121,7 @@ try {
     let lat = lastLocation?.coords?.latitude;
     let lon = lastLocation?.coords?.longitude;
 
+    // try get current location if missing from samples
     if ((lat == null || lon == null) && hasPermission) {
       try {
         const current = await Location.getCurrentPositionAsync({
@@ -131,6 +134,7 @@ try {
       }
     }
 
+    // payload with run data
     const payload = {
       distance: Math.round(distance),
       time: Math.round(timeSeconds),
@@ -142,6 +146,7 @@ try {
       lon,
     };
 
+    // send request to backend to save run data
     const response = await fetch(`${API_BASE_URL}/runs`, {
       method: "POST",
       headers: {
@@ -151,6 +156,7 @@ try {
       body: JSON.stringify(payload),
     });
 
+    // error handling
     if (!response.ok) {
       const text = await response.text();
       console.warn("Failed to save run:", response.status, text);
@@ -166,6 +172,7 @@ try {
   }
 };
 
+  // stop run, save data, and handle response
   const handleStopRun = async () => {
     stopTracking();
     stop();
@@ -183,12 +190,13 @@ try {
     }
 };
 
+  // UI state variables
   const isRecording = isTracking;
   const shouldFollowUser = hasPermission === true;
   const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
   const elevationGain = getElevationGain(locations);
 
-  // basic UI for run tracking 
+  // basic UI for run tracking - map and stats
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Run Tracker</Text>
