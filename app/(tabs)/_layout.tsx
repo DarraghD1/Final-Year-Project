@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { Button } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 
+/*  simple layout for tabs  */
 export default function TabsLayout() {
   const { signOut } = useAuth();
 

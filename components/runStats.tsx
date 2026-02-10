@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 type Props = {
   timeSeconds: number;
   distanceMeters: number;
+  elevationGainMeters?: number | null;
 };
 
 const formatTime = (totalSeconds: number) => {
@@ -22,8 +23,10 @@ const formatTime = (totalSeconds: number) => {
 export const RunStats: React.FC<Props> = ({
   timeSeconds,
   distanceMeters,
+  elevationGainMeters,
 }) => {
   const distanceKm = distanceMeters / 1000;
+  const elevationLabel = elevationGainMeters == null ? "-" : `${Math.round(elevationGainMeters)} m`;
 
   return (
     <View style={styles.statsRow}>
@@ -35,6 +38,11 @@ export const RunStats: React.FC<Props> = ({
       <View style={styles.stat}>
         <Text style={styles.statLabel}>Distance</Text>
         <Text style={styles.statValue}>{distanceKm.toFixed(2)} km</Text>
+      </View>
+
+      <View style={styles.stat}>
+        <Text style={styles.statLabel}>Elevation</Text>
+        <Text style={styles.statValue}>{elevationLabel}</Text>
       </View>
     </View>
   );

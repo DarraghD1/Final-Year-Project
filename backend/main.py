@@ -3,10 +3,12 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from typing import List
+import joblib
+from pathlib import Path
 
 from database import init_db, get_session
 from models import User, UserRun
-from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun
+from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse
 from auth_utilities import (
     get_password_hash,
     verify_password,
@@ -14,8 +16,9 @@ from auth_utilities import (
     get_user_by_email,
     get_current_user,
 )
-from weather_client import fetch_weather
+from weather_client import fetch_weather, fetch_current_weather
 
+# main app instance
 app = FastAPI(title="Running App API")
 
 # initialise database
@@ -32,6 +35,7 @@ def signup(user_in: UserCreate, session: Session = Depends(get_session)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email is already linked to an account.",
         )
+    # create new user with hashed pwrd and store in db
     user = User(
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
@@ -63,17 +67,41 @@ def create_run(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    weather_temp = None
+    weather_precip_mm = None
+    weather_humidity= None
+    weather_wind_kph = None
+
+    # fetch relevant weather data given we have long and lat
+    if run.lat is not None and run.lon is not None:
+        try:
+            weather = fetch_current_weather(run.lat, run.lon)
+            (
+                weather_temp,
+                weather_precip_mm,
+                weather_humidity,
+                weather_wind_kph,
+            ) = extract_weather_summary(weather)
+        except Exception as exc:
+            print(f"Weather lookup failed: {exc}")
+
+    # create run record in db
     db_run = UserRun(
         user_id=current_user.id,
         distance=run.distance,
         time=run.time,
+        elevation_gain=run.elevation_gain,
+        weather_temp=weather_temp,
+        weather_precip_mm=weather_precip_mm,
+        weather_humidity=weather_humidity,
+        weather_wind_kph=weather_wind_kph,
     )
     session.add(db_run)
     session.commit()
     session.refresh(db_run)
     return db_run
 
-# list current users past runs
+# list current users past runs from db
 @app.get("/runs", response_model=List[UserRun])
 def list_runs(
     session: Session = Depends(get_session),
@@ -83,12 +111,90 @@ def list_runs(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
 
-# ========== weather route ==========
+# ========== extracting weather payload ==========
+
+# helper to extract numeric val from weather response
+def _num(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        for key in ("value", "degrees", "celsius", "kmh", "kph", "amount", "speed", "percent"):
+            if key in value:
+                return _num(value[key])
+    return None
+
+def extract_weather_summary(payload: dict):
+    source = payload.get("currentConditions") if isinstance(payload.get("currentConditions"), dict) else payload
+
+    # extract relevant weather fields from payload
+    temp_val = _num(source.get("temperature") or source.get("temperatureCelsius") or source.get("temperatureC"))
+    humidity_val = _num(source.get("relativeHumidity") or source.get("humidity"))
+
+    precip_val = None
+    precip_field = source.get("precipitation")
+    precip_val = _num(
+            precip_field.get("amount")
+            or precip_field.get("intensity")
+            or precip_field.get("rate")
+            or precip_field.get("probability")
+        )
+
+    wind_val = None
+    wind_field = source.get("wind")
+    if isinstance(wind_field, dict) and "speed" in wind_field:
+        wind_val = _num(wind_field.get("speed"))
+    else:
+        wind_val = _num(source.get("windSpeed") or wind_field)
+
+    return temp_val, precip_val, humidity_val, wind_val
+
 
 # return past n hours weather for a given location
 @app.get("/weather")
 def get_weather(lat: float, lon: float, hours: int):
     return fetch_weather(lat, lon, hours)
+
+
+# ========== ML prediction ==========
+
+# helper loads user-specific ml model from disk
+def _load_user_model(user_id: int):
+    model_path = Path(__file__).resolve().parent / "ml_models" / f"user_{user_id}_linreg.joblib"
+    if not model_path.exists():
+        return None
+    return joblib.load(model_path)
+
+# predict run time
+@app.post("/ml/predict", response_model=PredictResponse)
+def predict_run_time(
+    payload: PredictRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.distance <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Distance must be greater than zero.",
+        )
+
+    model = _load_user_model(current_user.id)
+    if model is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Model not trained for this user.",
+        )
+
+    # conversions and prediction
+    distance_km = payload.distance / 1000 if payload.distance > 1000 else payload.distance
+    predicted_minutes = float(model.predict([[distance_km]])[0])
+    predicted_seconds = predicted_minutes * 60
+    if predicted_seconds < 0:
+        predicted_seconds = 0
+    predicted_seconds = int(round(predicted_seconds))
+    return PredictResponse(predicted_time_seconds=predicted_seconds)
+
 
 # ========== root and CORS ==========
 

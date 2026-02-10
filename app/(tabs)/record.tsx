@@ -1,3 +1,5 @@
+import MapboxGL from '@rnmapbox/maps';
+import * as Location from "expo-location";
 import React from "react";
 import { Button, Platform, StyleSheet, Text, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
@@ -11,7 +13,9 @@ import { useStopwatch } from "../../hooks/useStopwatch";
 export default function RunRecorderScreen() {
 
   const { token } = useAuth();
-
+  
+  // public access token for mapbox
+  MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
 
   // import location tracking and stopwatch hooks
   const {
@@ -43,7 +47,7 @@ export default function RunRecorderScreen() {
     );
   }
 
-  // permission UI
+  // location permission UI
   if (hasPermission === null) {
     return (
       <View style={styles.center}>
@@ -84,9 +88,23 @@ export default function RunRecorderScreen() {
     unpause();
   };
 
+  // compute elevation gain from points taken on the run using altitude data from loc samples **Accuracy needs to be improved
+  const getElevationGain = (samples: Array<Location.LocationObject>) => {
+    const elevations = samples
+      .map((sample) => sample.coords?.altitude)
+      .filter((altitude): altitude is number => typeof altitude === "number" && Number.isFinite(altitude));
+
+    if (elevations.length < 2) return null;
+
+    // return final elevation gain via simple max - min method
+    const minElevation = Math.min(...elevations);
+    const maxElevation = Math.max(...elevations);
+    return maxElevation - minElevation;
+  };
+
   // send run info payload to backend and await response
   const saveRunData = async (
-    locations: Array<any>,  // currently unused
+    locations: Array<any>,
     distance: number,
     timeSeconds: number
   ) => {
@@ -95,12 +113,40 @@ export default function RunRecorderScreen() {
       return false;
     }
 
+    // get last long & lat for weather data, handle missing coords 
 try {
+    const lastLocation =
+      locations && locations.length > 0 ? locations[locations.length - 1] : null;
+
+    let lat = lastLocation?.coords?.latitude;
+    let lon = lastLocation?.coords?.longitude;
+
+    // try get current location if missing from samples
+    if ((lat == null || lon == null) && hasPermission) {
+      try {
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        lat = current.coords.latitude;
+        lon = current.coords.longitude;
+      } catch (err) {
+        console.warn("Unable to get current location for weather", err);
+      }
+    }
+
+    // payload with run data
     const payload = {
       distance: Math.round(distance),
-      time: Math.round(timeSeconds), 
+      time: Math.round(timeSeconds),
+      elevation_gain: (() => {
+        const gain = getElevationGain(locations);
+        return gain == null ? null : Math.round(gain);
+      })(),
+      lat,
+      lon,
     };
 
+    // send request to backend to save run data
     const response = await fetch(`${API_BASE_URL}/runs`, {
       method: "POST",
       headers: {
@@ -110,6 +156,7 @@ try {
       body: JSON.stringify(payload),
     });
 
+    // error handling
     if (!response.ok) {
       const text = await response.text();
       console.warn("Failed to save run:", response.status, text);
@@ -125,6 +172,7 @@ try {
   }
 };
 
+  // stop run, save data, and handle response
   const handleStopRun = async () => {
     stopTracking();
     stop();
@@ -142,9 +190,13 @@ try {
     }
 };
 
+  // UI state variables
   const isRecording = isTracking;
+  const shouldFollowUser = hasPermission === true;
+  const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
+  const elevationGain = getElevationGain(locations);
 
-  // basic UI for run tracking 
+  // basic UI for run tracking - map and stats
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Run Tracker</Text>
@@ -152,7 +204,46 @@ try {
       <RunStats
         timeSeconds={seconds}
         distanceMeters={distance}
+        elevationGainMeters={elevationGain}
       />
+
+  {(Platform.OS === 'ios' || Platform.OS === 'android') && (
+        <View style={styles.mapWrap}>
+
+          <MapboxGL.MapView style={styles.map}>
+            <MapboxGL.Camera
+              zoomLevel={14}
+              followUserLocation={shouldFollowUser}
+              followUserMode={MapboxGL.UserTrackingModes.Follow}
+              centerCoordinate={
+                locations && locations.length > 0
+                  ? [locations[locations.length - 1].coords.longitude, locations[locations.length - 1].coords.latitude]
+                  : [0, 0]
+              }
+            />
+
+                {shouldFollowUser && <MapboxGL.UserLocation visible={true} />}
+
+                {shouldShowRoute && locations.length > 1 && (
+                  <MapboxGL.ShapeSource
+                    id="routeSource"
+                    shape={{ type: 'Feature', geometry: { type: 'LineString', coordinates: locations.map((l: any) => [l.coords.longitude, l.coords.latitude]) }, properties: {} }}
+                  >
+                    <MapboxGL.LineLayer id="routeLine" style={{ lineColor: '#00ff6eff', lineWidth: 6 }} />
+                  </MapboxGL.ShapeSource>
+                )}
+
+                {shouldShowRoute && (
+                  <MapboxGL.PointAnnotation
+                    id="current"
+                    coordinate={[locations[locations.length - 1].coords.longitude, locations[locations.length - 1].coords.latitude]}
+                  >
+                    <View style={styles.currentMarker} />
+                  </MapboxGL.PointAnnotation>
+                )}
+          </MapboxGL.MapView>
+        </View>
+      )}
 
       <View style={styles.buttonsRow}>
       {status === 'idle' && (
@@ -197,6 +288,24 @@ const styles = StyleSheet.create({
     color: "#e5e7eb",
     textAlign: "center",
     marginBottom: 24,
+  },
+  mapWrap: {
+    height: 300,
+    marginVertical: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+    height: '100%',
+  },
+  currentMarker: {
+    width: 20,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1893ffff',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   buttonsRow: {
     marginTop: "auto",

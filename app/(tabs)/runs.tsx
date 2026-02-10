@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
+  Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
+import { predictRunTime } from "../../api/ml";
 import { fetchRuns, Run } from "../../api/runs";
 import { useAuth } from "../../context/AuthContext";
 
-/* Page for displaying users past runs */
+/*  Page for displaying users past runs  */
 
 type RunForm = {
   date: string;
@@ -20,21 +23,34 @@ type RunForm = {
 export default function RunsScreen() {
   const { token } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
-  const [form, setForm] = useState<RunForm>({ date: "", distance: "", duration: "", notes: "" });
+  const [refreshing, setRefreshing] = useState(false);
+  const [predictDistanceKm, setPredictDistanceKm] = useState("");
+  const [predicting, setPredicting] = useState(false);
+  const [predictedSeconds, setPredictedSeconds] = useState<number | null>(null);
+  const [predictError, setPredictError] = useState<string | null>(null);
+
+  // load runs from backend
+  const loadRuns = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchRuns(token);
+      // return runs in array
+      setRuns(data ?? []);
+    } catch (err) {
+      console.warn("Failed to fetch runs", err);
+    }
+  }, [token]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        if (token) {
-          const data = await fetchRuns(token);
-          // return array of runs
-          setRuns(data ?? []);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch runs", err);
-      }
-    })();
-  }, [token]);
+    loadRuns();
+  }, [loadRuns]);
+
+  // refreshing added to update run list
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRuns();
+    setRefreshing(false);
+  }, [loadRuns]);
 
   // display time clearly in hh:mm:ss format
   const formatTime = (secs?: number) => {
@@ -50,26 +66,88 @@ export default function RunsScreen() {
   // convert distance to km
   const toKilometer = (meters?: number) => {
     if (meters == null) return "-";
-    return `${(meters / 1000).toFixed(2)} km`;
+    const km = meters >= 1000 ? meters / 1000 : meters;
+    return `${km.toFixed(2)} km`;
+  };
+
+  const toElevation = (meters?: number | null) => {
+    if (meters == null) return "-";
+    return `${Math.round(meters)} m`;
+  };
+
+  // handle prediction request
+  const handlePredict = async () => {
+    if (!token) {
+      setPredictError("Sign in to get a prediction.");
+      return;
+    }
+    // allow distances between 0-200km
+    const distanceKm = Number(predictDistanceKm);
+    if (distanceKm > 200 || distanceKm <= 0) {
+      setPredictError("Enter a valid distance in (0.1km - 200km).");
+      return;
+    }
+    setPredictError(null);
+    setPredicting(true);
+
+    // call prediction API and handle response
+    try {
+      const distanceMeters = distanceKm * 1000;
+      const result = await predictRunTime(distanceMeters, token);
+      setPredictedSeconds(result.predicted_time_seconds);
+    } catch (err) {
+      console.warn("Prediction failed", err);
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Prediction failed. Train the model first.";
+      setPredictError(message);
+    } finally {
+      setPredicting(false);
+    }
   };
 
   // data presentation
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Add a Run</Text>
+      <Text style={styles.title}>Predict a Run</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Distance (km)"
+        value={predictDistanceKm}
+        onChangeText={setPredictDistanceKm}
+        keyboardType="numeric"
+      />
+      <Pressable style={styles.button} onPress={handlePredict} disabled={predicting}>
+        <Text style={styles.buttonText}>
+          {predicting ? "Predicting..." : "Get Prediction"}
+        </Text>
+      </Pressable>
+      <View style={styles.predictionBox}>
+        <Text style={styles.predictionLabel}>Predicted time</Text>
+        <Text style={styles.predictionValue}>
+          {predictedSeconds == null ? "-" : formatTime(predictedSeconds)}
+        </Text>
+        {predictError ? <Text style={styles.errorText}>{predictError}</Text> : null}
+      </View>
 
       <Text style={[styles.title, { marginTop: 20 }]}>Your Runs</Text>
       <FlatList
         data={runs}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         renderItem={({ item }) => (
           <View style={styles.runItem}>
             <Text style={styles.runText}>Run #{String(item.id)}</Text>
             <Text style={{ color: "#444", marginTop: 6 }}>Distance: {toKilometer(item.distance)}</Text>
             <Text style={{ color: "#444" }}>Time: {formatTime(item.time)}</Text>
+            <Text style={{ color: "#444" }}>Elevation: {toElevation(item.elevation_gain)}</Text>
+            <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
+            <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
           </View>
         )}
         keyExtractor={(r, i) => String(r.id) + String(i)}
-        ListEmptyComponent={<Text style={{ color: "#666" }}>No runs yet — record your first one by pressing 'Record'</Text>}
+        ListEmptyComponent={<Text style={{ color: "#3d3d3dff" }}>No runs yet — record your first one by pressing 'Record'</Text>}
       />
     </View>
   );
@@ -93,6 +171,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: { color: "#fff", fontWeight: "600" },
+  predictionBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#f0f4ff",
+  },
+  predictionLabel: { color: "#3b4a6b", fontWeight: "600" },
+  predictionValue: { color: "#111", fontSize: 18, marginTop: 6 },
+  errorText: { color: "#b3261e", marginTop: 6 },
   runItem: {
     padding: 12,
     borderRadius: 8,
