@@ -186,8 +186,8 @@ def predict_run_time(
             detail="Model not trained for this user.",
         )
 
-    # conversions and prediction
-    distance_km = payload.distance / 1000 if payload.distance > 1000 else payload.distance
+    # conversions and prediction (distance stored/sent in meters)
+    distance_km = payload.distance / 1000
     predicted_minutes = float(model.predict([[distance_km]])[0])
     predicted_seconds = predicted_minutes * 60
     if predicted_seconds < 0:

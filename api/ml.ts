@@ -6,9 +6,9 @@ export type PredictionResponse = {
   predicted_time_seconds: number;
 };
 
-// takes in distance in km returns prediction time in mins:secs
+// takes in distance in meters returns prediction time in mins:secs
 export async function predictRunTime(
-  distanceKm: number,
+  distanceMeters: number,
   token: string
 ): Promise<PredictionResponse> {
   
@@ -18,7 +18,7 @@ export async function predictRunTime(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ distance: Math.round(distanceKm) }),
+    body: JSON.stringify({ distance: Math.round(distanceMeters) }),
   });
 
   // error handling
