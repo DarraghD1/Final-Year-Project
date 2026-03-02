@@ -52,7 +52,7 @@ export default function RunsScreen() {
     setRefreshing(false);
   }, [loadRuns]);
 
-  // display time clearly in hh:mm:ss format
+  // display time in hh:mm:ss format
   const formatTime = (secs?: number) => {
     if (!secs && secs !== 0) return "-";
     const s = Number(secs);
