@@ -1,16 +1,57 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import joblib
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 from sqlmodel import Session, select
 
-from models import UserRun
+from models import UserRun, User
 
 # save models under ml_models (wont scale well but fine for nwo)
 MODEL_DIR = Path(__file__).resolve().parent / "ml_models"
+BASE_MODEL = "base_ridge.joblib"                            # initial start model
+
+# function to convert sex to 0/1
+def _sex_to_code(sex: Optional[str]) -> float:
+    if not sex:
+        return 0.0
+    s = sex.strip().lower()
+    if s in {"male", "m"}:
+        return 0.0
+    if s in {"female", "f"}:
+        return 1.0
+
+def _to_km(distance_m: int) -> float:
+    return float(distance_m) / 1000.0
 
 
+def _to_minutes(seconds: int) -> float:
+    return float(seconds) / 60.0
+
+# converts user attributes and run data into features and target for training
+def _features_for_run(run: UserRun, user: Optional[User]) -> Optional[Tuple[list, float]]:
+
+    # handle missing data
+    if run.distance is None or run.time is None:
+        return None
+    
+    age_val = 0.0
+    sex_val = 0.0
+
+    # apply user specific attributes (age, sex) and make unit conversion
+    if user is not None:
+        if user.age is not None:
+            age_val = float(user.age)
+        sex_val = _sex_to_code(user.sex)
+    features = [_to_km(run.distance), age_val, sex_val]
+    target = _to_minutes(run.time)
+    return features, target
+
+
+def _base_model_path() -> Path:
+    return MODEL_DIR / BASE_MODEL
+
+# personalised model path
 def _model_path_for_user(user_id: int) -> Path:
     return MODEL_DIR / f"user_{user_id}_linreg.joblib"
 
@@ -28,7 +69,10 @@ def train_user_model(session: Session, user_id: int) -> Optional[Path]:
         select(UserRun).where(UserRun.user_id == user_id)
     ).all()
 
-    # must have at least 2 runs
+    # get user profile for features
+    user = session.exec(select(User).where(User.id == user_id)).first()
+
+    # must have at least 2 runs to use personalised model - else global model used
     if len(runs) < 2:
         _remove_user_model(user_id)
         return None
@@ -36,10 +80,12 @@ def train_user_model(session: Session, user_id: int) -> Optional[Path]:
     X = []
     y = []
     for run in runs:
-        if run.distance is None or run.time is None:
+        feat = _features_for_run(run, user)
+        if feat is None:
             continue
-        X.append([_to_km(run.distance)])
-        y.append(_to_minutes(run.time))
+        features, target = feat
+        X.append(features)
+        y.append(target)
 
     if len(X) < 2:
         _remove_user_model(user_id)
@@ -51,5 +97,40 @@ def train_user_model(session: Session, user_id: int) -> Optional[Path]:
     # save model as joblib file under users id
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     model_path = _model_path_for_user(user_id)
+    joblib.dump(model, model_path)
+    return model_path
+
+'''
+    train base model on all runs with users data (from profile) 
+    this is for cold-start predictions for new users (runs < 2)
+'''
+def train_base_model(session: Session) -> Optional[Path]:
+
+    # train on all user runs
+    rows = session.exec(select(UserRun, User).where(UserRun.user_id == User.id)).all()
+
+    if len(rows) < 2:
+        return None
+
+    X = []
+    y = []
+
+    # read in users run records and append to features and target
+    for run, user in rows:
+        feat = _features_for_run(run, user)
+        if feat is None:
+            continue
+        features, target = feat
+        X.append(features)
+        y.append(target)
+
+    if len(X) < 2:
+        return None
+
+    model = Ridge(alpha=1.0)
+    model.fit(X, y)
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    model_path = _base_model_path()
     joblib.dump(model, model_path)
     return model_path

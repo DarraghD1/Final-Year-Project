@@ -9,6 +9,8 @@ class UserCreate(BaseModel):
 class UserRead(BaseModel):
     id: int
     email: EmailStr
+    age: Optional[int] = None
+    sex: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -33,3 +35,17 @@ class PredictRequest(BaseModel):
 
 class PredictResponse(BaseModel):
     predicted_time_seconds: int
+
+# req data frim user profile attributes
+class UserProfileRead(BaseModel):
+    id: int
+    email: EmailStr
+    age: Optional[int] = None
+    sex: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class UserProfileUpdate(BaseModel):
+    age: Optional[int] = None
+    sex: Optional[str] = None

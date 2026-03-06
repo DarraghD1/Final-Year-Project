@@ -3,7 +3,7 @@ import { Tabs } from "expo-router";
 import { Button } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 
-/*  simple layout for tabs  */
+/*  tabs layout  */
 export default function TabsLayout() {
   const { signOut } = useAuth();
 
@@ -22,6 +22,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="runs"
         options={{ title: "My Runs" }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: "Profile" }}
       />
     </Tabs>
   );

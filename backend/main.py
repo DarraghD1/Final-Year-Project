@@ -8,7 +8,9 @@ from pathlib import Path
 
 from database import init_db, get_session
 from models import User, UserRun
-from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse
+from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse, UserProfileRead, UserProfileUpdate
+from ml_training import train_user_model
+from base_model import load_base_model, predict_base_seconds
 from auth_utilities import (
     get_password_hash,
     verify_password,
@@ -59,7 +61,6 @@ def login(login_data: LoginRequest, session: Session = Depends(get_session)):
     return Token(access_token=access_token)
 
 # ========== run routes ==========
-
 # create run for current user and store in db
 @app.post("/runs", response_model=UserRun)
 def create_run(
@@ -99,6 +100,13 @@ def create_run(
     session.add(db_run)
     session.commit()
     session.refresh(db_run)
+
+    # retrain user model after new data
+    try:
+        train_user_model(session, current_user.id)
+    except Exception as exc:
+        print(f"Model training failed: {exc}")
+
     return db_run
 
 # list current users past runs from db
@@ -110,6 +118,62 @@ def list_runs(
     return session.exec(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
+
+
+# ========== user profile routes ==========
+
+VALID_SEX = {"male", "female", "prefer_not_to_say"}
+
+# get current user
+@app.get("/users/me", response_model=UserProfileRead)
+def get_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@app.patch("/users/me", response_model=UserProfileRead)
+def update_profile(
+    payload: UserProfileUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    # only apply updates set by user
+    updates = payload.dict(exclude_unset=True)
+
+    # update age once set (allow range 15 to 110)
+    if "age" in updates:
+        age_val = updates.get("age")
+        if age_val is not None and (age_val < 15 or age_val > 110):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Age must be between 15 and 110.",
+            )
+        current_user.age = age_val
+
+    # update sex if set
+    if "sex" in updates:
+        sex_val = updates.get("sex")
+        if sex_val is not None:
+
+            # normalise input
+            normalised = sex_val.strip().lower()
+            if normalised == "":
+                normalised = None
+            if normalised is not None and normalised not in VALID_SEX:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Sex must be one of: male, female, prefer_not_to_say.",
+                )
+            current_user.sex = normalised
+        else:
+            current_user.sex = None
+
+    # persist changes
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+    return current_user
+
+
 
 # ========== extracting weather payload ==========
 
@@ -159,12 +223,29 @@ def get_weather(lat: float, lon: float, hours: int):
 
 # ========== ML prediction ==========
 
-# helper loads user-specific ml model from disk
+# helper loads user-specific ml model from joblib
 def _load_user_model(user_id: int):
     model_path = Path(__file__).resolve().parent / "ml_models" / f"user_{user_id}_linreg.joblib"
     if not model_path.exists():
         return None
     return joblib.load(model_path)
+
+# convert sex to 0/1 - default to 0 (might change later)
+def _sex_to_code(sex):
+    if not sex:
+        return 0.0
+    s = sex.strip().lower()
+    if s in ("male", "m"):
+        return 0.0
+    if s in ("female", "f"):
+        return 1.0
+    return 0.5
+# build feature vector for model (retunr dist, age, sex in list)
+def _feature_vector(distance_m: int, user: User):
+    distance_km = distance_m / 1000
+    age_val = float(user.age) if user.age is not None else 0.0
+    sex_val = _sex_to_code(user.sex)
+    return [distance_km, age_val, sex_val]
 
 # predict run time
 @app.post("/ml/predict", response_model=PredictResponse)
@@ -179,6 +260,24 @@ def predict_run_time(
             detail="Distance must be greater than zero.",
         )
 
+    # pull users runs to check if they have enough to use personalised model
+    user_runs = session.exec(
+        select(UserRun).where(UserRun.user_id == current_user.id)
+    ).all()
+    use_base = len(user_runs) < 2
+    if use_base:
+        base_model = load_base_model()
+        if base_model is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Base model artifact missing. Export the pre-trained base model first.",
+            )
+        # predict time using the base model
+        predicted_seconds = predict_base_seconds(base_model, payload.distance, current_user)
+        predicted_seconds = int(round(max(predicted_seconds, 0)))
+        return PredictResponse(predicted_time_seconds=predicted_seconds)
+
+    # predict time using personalised model
     model = _load_user_model(current_user.id)
     if model is None:
         raise HTTPException(
@@ -186,13 +285,11 @@ def predict_run_time(
             detail="Model not trained for this user.",
         )
 
-    # conversions and prediction (distance stored/sent in meters)
-    distance_km = payload.distance / 1000
-    predicted_minutes = float(model.predict([[distance_km]])[0])
+    # conversions and prediction (distance stored adn sent in meters)
+    features = _feature_vector(payload.distance, current_user)
+    predicted_minutes = float(model.predict([features])[0])
     predicted_seconds = predicted_minutes * 60
-    if predicted_seconds < 0:
-        predicted_seconds = 0
-    predicted_seconds = int(round(predicted_seconds))
+    predicted_seconds = int(round(max(predicted_seconds, 0)))
     return PredictResponse(predicted_time_seconds=predicted_seconds)
 
 
