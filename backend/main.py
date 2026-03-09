@@ -264,31 +264,74 @@ def predict_run_time(
     user_runs = session.exec(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
-    use_base = len(user_runs) < 2
-    if use_base:
-        base_model = load_base_model()
-        if base_model is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Base model artifact missing. Export the pre-trained base model first.",
-            )
-        # predict time using the base model
-        predicted_seconds = predict_base_seconds(base_model, payload.distance, current_user)
-        predicted_seconds = int(round(max(predicted_seconds, 0)))
-        return PredictResponse(predicted_time_seconds=predicted_seconds)
+    valid_runs = [r for r in user_runs]
+    run_count = len(valid_runs)
 
-    # predict time using personalised model
-    model = _load_user_model(current_user.id)
-    if model is None:
+    # low end of recorded runs user needs for personalised model input
+    blend_lower_bound = 2
+
+    # cut off point for base model (assume user predictions to be enough accurate after this many runs)
+    blend_upper_bound = 8
+
+    base_model = load_base_model()
+    if base_model is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Model not trained for this user.",
+            detail="Base model artifact missing. Export the pre-trained base model first.",
         )
 
-    # conversions and prediction (distance stored adn sent in meters)
-    features = _feature_vector(payload.distance, current_user)
-    predicted_minutes = float(model.predict([features])[0])
-    predicted_seconds = predicted_minutes * 60
+    # try to load/retrain user model if it should contribute
+    user_model = None
+
+    # users with less than 2 runs use base model only
+    if run_count >= blend_lower_bound:
+        user_model = _load_user_model(current_user.id)
+
+        # train base model for user if it doesnt exit
+        if user_model is None:
+            try:
+                train_user_model(session, current_user.id)
+                user_model = _load_user_model(current_user.id)
+            except Exception as exc:
+                print(f"User model retrain failed: {exc}")
+
+        # ensure correct number of features 
+        expected = 3
+        n = getattr(user_model, "n_features_in_", expected)
+        if n != expected:
+            raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Model schema mismatch (expected {expected} features, got {n}). Retrain model.",
+    )
+
+    # base prediction
+    base_pred_secs = float(predict_base_seconds(base_model, payload.distance, current_user))
+
+    # personalised prediction if model exists
+    personal_pred_secs = None
+    if user_model is not None:
+        features = _feature_vector(payload.distance, current_user)
+        predicted_minutes = float(user_model.predict([features])[0])
+        personal_pred_secs = predicted_minutes * 60
+
+    # combine predictions, weighting each one based on how many runs the user has recorded
+    if personal_pred_secs is None or run_count < blend_lower_bound:
+
+        # use base model if runs are less than min required
+        predicted_seconds = base_pred_secs
+    else:
+        # min-max func calculates weight [0-1] to be applied to predictions
+        weight = (run_count - blend_lower_bound) / float(blend_upper_bound - blend_lower_bound)
+        # clamps
+        if weight < 0:
+            weight = 0.0
+        if weight > 1:
+            weight = 1.0
+
+        # blend models through weight
+        predicted_seconds = (weight * personal_pred_secs) + ((1 - weight) * base_pred_secs)
+
+    # ensure no negative preds
     predicted_seconds = int(round(max(predicted_seconds, 0)))
     return PredictResponse(predicted_time_seconds=predicted_seconds)
 
