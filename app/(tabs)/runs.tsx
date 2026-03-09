@@ -52,7 +52,7 @@ export default function RunsScreen() {
     setRefreshing(false);
   }, [loadRuns]);
 
-  // display time clearly in hh:mm:ss format
+  // display time in hh:mm:ss format
   const formatTime = (secs?: number) => {
     if (!secs && secs !== 0) return "-";
     const s = Number(secs);
@@ -66,7 +66,7 @@ export default function RunsScreen() {
   // convert distance to km
   const toKilometer = (meters?: number) => {
     if (meters == null) return "-";
-    const km = meters >= 1000 ? meters / 1000 : meters;
+    const km = meters / 1000;
     return `${km.toFixed(2)} km`;
   };
 
