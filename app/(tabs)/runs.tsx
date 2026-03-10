@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -8,22 +9,16 @@ import {
   View
 } from "react-native";
 import { predictRunTime } from "../../api/ml";
-import { fetchRuns, Run } from "../../api/runs";
+import { deleteRun, fetchRuns, Run } from "../../api/runs";
 import { useAuth } from "../../context/AuthContext";
 
 /*  Page for displaying users past runs  */
-
-type RunForm = {
-  date: string;
-  distance: string; // km
-  duration: string; // mm:ss or hh:mm:ss
-  notes?: string;
-};
 
 export default function RunsScreen() {
   const { token } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingRunId, setDeletingRunId] = useState<number | string | null>(null);
   const [predictDistanceKm, setPredictDistanceKm] = useState("");
   const [predicting, setPredicting] = useState(false);
   const [predictedSeconds, setPredictedSeconds] = useState<number | null>(null);
@@ -74,6 +69,34 @@ export default function RunsScreen() {
     if (meters == null) return "-";
     return `${Math.round(meters)} m`;
   };
+
+  // give user ability to delete runs
+  const handleDeleteRun = useCallback(
+    (runId: number | string) => {
+      if (!token) return;
+
+      Alert.alert("Delete run", "This will remove the run permanently.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingRunId(runId);
+              await deleteRun(runId, token);
+              setRuns((prev) => prev.filter((run) => run.id !== runId));
+            } catch (err) {
+              console.warn("Failed to delete run", err);
+              Alert.alert("Delete failed", "Could not delete this run.");
+            } finally {
+              setDeletingRunId(null);
+            }
+          },
+        },
+      ]);
+    },
+    [token]
+  );
 
   // handle prediction request
   const handlePredict = async () => {
@@ -144,6 +167,18 @@ export default function RunsScreen() {
             <Text style={{ color: "#444" }}>Elevation: {toElevation(item.elevation_gain)}</Text>
             <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
             <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
+            <Pressable
+              style={[
+                styles.deleteButton,
+                deletingRunId === item.id ? styles.deleteButtonDisabled : null,
+              ]}
+              onPress={() => handleDeleteRun(item.id)}
+              disabled={deletingRunId === item.id}
+            >
+              <Text style={styles.deleteButtonText}>
+                {deletingRunId === item.id ? "Deleting..." : "Delete"}
+              </Text>
+            </Pressable>
           </View>
         )}
         keyExtractor={(r, i) => String(r.id) + String(i)}
@@ -187,4 +222,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   runText: { color: "#111" },
+  deleteButton: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#b3261e",
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

@@ -119,6 +119,28 @@ def list_runs(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
 
+# allow users to delete past runs
+@app.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_run(
+    run_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    run = session.get(UserRun, run_id)
+    if not run or run.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run not found.",
+        )
+
+    session.delete(run)
+    session.commit()
+
+    try:
+        train_user_model(session, current_user.id)
+    except Exception as exc:
+        print(f"Model training failed: {exc}")
+
 
 # ========== user profile routes ==========
 

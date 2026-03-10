@@ -93,7 +93,7 @@ export default function ProfileScreen() {
   // UI for user profile
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Personalize Your Predictions</Text>
+      <Text style={styles.title}>Personalise Your Predictions</Text>
       <Text style={styles.subtitle}>
         Add a few details to improve the base model predictions.
       </Text>
@@ -101,7 +101,7 @@ export default function ProfileScreen() {
       <Text style={styles.label}>Age</Text>
       <TextInput
         style={styles.input}
-        placeholder="e.g. 28"
+        placeholder="e.g. 22"
         value={age}
         onChangeText={setAge}
         keyboardType="numeric"

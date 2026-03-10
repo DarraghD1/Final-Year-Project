@@ -20,7 +20,6 @@ export default function RunRecorderScreen() {
   // import location tracking and stopwatch hooks
   const {
     hasPermission,
-    isTracking,
     locations,
     distance,
     startTracking,
@@ -89,7 +88,7 @@ export default function RunRecorderScreen() {
   };
 
   // compute elevation gain from points taken on the run using altitude data from loc samples **Accuracy needs to be improved
-  const getElevationGain = (samples: Array<Location.LocationObject>) => {
+  const getElevationGain = (samples: Location.LocationObject[]) => {
     const elevations = samples
       .map((sample) => sample.coords?.altitude)
       .filter((altitude): altitude is number => typeof altitude === "number" && Number.isFinite(altitude));
@@ -104,7 +103,7 @@ export default function RunRecorderScreen() {
 
   // send run info payload to backend and await response
   const saveRunData = async (
-    locations: Array<any>,
+    locations: any[],
     distance: number,
     timeSeconds: number
   ) => {
@@ -191,7 +190,6 @@ try {
 };
 
   // UI state variables
-  const isRecording = isTracking;
   const shouldFollowUser = hasPermission === true;
   const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
   const elevationGain = getElevationGain(locations);
@@ -273,7 +271,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     paddingTop: 48,
-    backgroundColor: "#ffffffff",
+    backgroundColor: "#fff",
   },
   center: {
     flex: 1,
@@ -285,7 +283,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#e5e7eb",
+    color: "#111827",
     textAlign: "center",
     marginBottom: 24,
   },
