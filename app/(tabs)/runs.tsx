@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -11,6 +11,70 @@ import {
 import { predictRunTime } from "../../api/ml";
 import { deleteRun, fetchRuns, Run } from "../../api/runs";
 import { useAuth } from "../../context/AuthContext";
+
+const PRs = [{label:"Fastest 2 mile", meters:3219},
+  {label:"Fastest 5k", meters:5000},
+  {label:"Fastest 10k",meters:10000},
+  {label:"Fastest 15k", meters:15000},
+  {label:"Fastest 22k", meters:22000},
+  {label:"Fastest 42k", meters:42000},
+];
+
+function getLongestRun(runs: Run[]) {
+  let best: Run | null = null;
+
+  // loop through users runs
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+
+    // skip runs with no valid distance
+    if (typeof run.distance !== "number" || run.distance <= 0) {
+      continue;
+    }
+
+    // set first valid run to 'best' 
+    if (best === null) {
+      best = run;
+      continue;
+    }
+
+    // if this run is longer, replace best
+    if (run.distance > (best.distance ?? 0)) {
+      best = run;
+    }
+  }
+
+  return best;
+}
+
+function getFastestRunForDistance(runs: Run[], targetMeters: number) {
+  let best: Run | null = null;
+
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+
+    // skip invalid distance/time
+    if (typeof run.distance !== "number" || typeof run.time !== "number") {
+      continue;
+    }
+    if (run.distance < targetMeters || run.time <= 0) {
+      continue;
+    }
+
+    // set first valid run best
+    if (best === null) {
+      best = run;
+      continue;
+    }
+
+    // if this run has a smaller time, it's faster
+    if (run.time < (best.time ?? 0)) {
+      best = run;
+    }
+  }
+
+  return best;
+}
 
 /*  Page for displaying users past runs  */
 
@@ -69,6 +133,29 @@ export default function RunsScreen() {
     if (meters == null) return "-";
     return `${Math.round(meters)} m`;
   };
+
+  // convert meters and seconds records into km/min pace
+  const formatPace = (meters?: number, secs?: number) => {
+    if (meters == null || secs == null || meters <= 0 || secs <= 0) return "-";
+    const secondsPerKm = Math.round(secs / (meters / 1000));
+    const minutes = Math.floor(secondsPerKm / 60);
+    const seconds = secondsPerKm % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")} / km`;
+  };
+
+  // useMemo rechecks longest run only when run array is altered 
+  const longestRun = useMemo(() => getLongestRun(runs), [runs]);
+
+  // build PR list attaching relevant runs
+  const distancePbs = useMemo(() => PRs.map((distance) => ({
+
+        // copy label/meters from pr list
+        ...distance,
+        // add best runs if available
+        run: getFastestRunForDistance(runs, distance.meters),
+      })),
+    [runs]
+  );
 
   // give user ability to delete runs
   const handleDeleteRun = useCallback(
@@ -133,37 +220,75 @@ export default function RunsScreen() {
   // data presentation
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Predict a Run</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Distance (km)"
-        value={predictDistanceKm}
-        onChangeText={setPredictDistanceKm}
-        keyboardType="numeric"
-      />
-      <Pressable style={styles.button} onPress={handlePredict} disabled={predicting}>
-        <Text style={styles.buttonText}>
-          {predicting ? "Predicting..." : "Get Prediction"}
-        </Text>
-      </Pressable>
-      <View style={styles.predictionBox}>
-        <Text style={styles.predictionLabel}>Predicted time</Text>
-        <Text style={styles.predictionValue}>
-          {predictedSeconds == null ? "-" : formatTime(predictedSeconds)}
-        </Text>
-        {predictError ? <Text style={styles.errorText}>{predictError}</Text> : null}
-      </View>
-
-      <Text style={[styles.title, { marginTop: 20 }]}>Your Runs</Text>
       <FlatList
         data={runs}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            <Text style={styles.title}>Predict a Run</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Distance (km)"
+              value={predictDistanceKm}
+              onChangeText={setPredictDistanceKm}
+              keyboardType="numeric"
+            />
+            <Pressable style={styles.button} onPress={handlePredict} disabled={predicting}>
+              <Text style={styles.buttonText}>
+                {predicting ? "Predicting..." : "Get Prediction"}
+              </Text>
+            </Pressable>
+            <View style={styles.predictionBox}>
+              <Text style={styles.predictionLabel}>Predicted time</Text>
+              <Text style={styles.predictionValue}>
+                {predictedSeconds == null ? "-" : formatTime(predictedSeconds)}
+              </Text>
+              {predictError ? <Text style={styles.errorText}>{predictError}</Text> : null}
+            </View>
+
+            <Text style={[styles.title, styles.sectionTitle]}>Personal Bests</Text>
+            <View style={styles.pbGrid}>
+              <View style={styles.pbCard}>
+                <Text style={styles.pbLabel}>Longest run</Text>
+                <Text style={styles.pbValue}>
+                  {longestRun ? toKilometer(longestRun.distance) : "-"}
+                </Text>
+              </View>
+              {distancePbs.map((distance) => (
+                <View key={distance.label} style={styles.pbCard}>
+                  <Text style={styles.pbLabel}>{distance.label}</Text>
+                  <Text style={styles.pbValue}>
+                    {distance.run ? formatTime(distance.run.time) : "-"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={[styles.title, styles.sectionTitle]}>Your Runs</Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <View style={styles.runItem}>
-            <Text style={styles.runText}>Run #{String(item.id)}</Text>
+            <View style={styles.runHeader}>
+              <Text style={styles.runText}>Run #{String(item.id)}</Text>
+              <View>
+                {longestRun?.id === item.id ? (
+                  <View>
+                    <Text>PB Distance</Text>
+                  </View>
+                ) : null}
+                {distancePbs.filter((distance) => distance.run?.id === item.id).map((distance) => (
+                  <View key={distance.label}>
+                    <Text>PB</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
             <Text style={{ color: "#444", marginTop: 6 }}>Distance: {toKilometer(item.distance)}</Text>
             <Text style={{ color: "#444" }}>Time: {formatTime(item.time)}</Text>
+            <Text style={{ color: "#444" }}>Average Pace: {formatPace(item.distance, item.time)}</Text>
             <Text style={{ color: "#444" }}>Elevation: {toElevation(item.elevation_gain)}</Text>
             <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
             <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
@@ -182,7 +307,7 @@ export default function RunsScreen() {
           </View>
         )}
         keyExtractor={(r, i) => String(r.id) + String(i)}
-        ListEmptyComponent={<Text style={{ color: "#3d3d3dff" }}>No runs yet — record your first one by pressing 'Record'</Text>}
+        ListEmptyComponent={<Text style={{ color: "#3d3d3dff" }}>No runs yet - record your first one by pressing Record</Text>}
       />
     </View>
   );
@@ -190,7 +315,9 @@ export default function RunsScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 16, flex: 1, backgroundColor: "#fff" },
+  listContent: { paddingBottom: 24 },
   title: { fontSize: 22, fontWeight: "600", marginBottom: 8 },
+  sectionTitle: { marginTop: 20 },
   input: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
@@ -215,11 +342,38 @@ const styles = StyleSheet.create({
   predictionLabel: { color: "#3b4a6b", fontWeight: "600" },
   predictionValue: { color: "#111", fontSize: 18, marginTop: 6 },
   errorText: { color: "#b3261e", marginTop: 6 },
+  pbGrid: {
+    gap: 8,
+    marginTop: 4,
+  },
+  pbCard: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  pbLabel: {
+    color: "#475569",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  pbValue: {
+    color: "#111",
+    fontSize: 18,
+    fontWeight: "700",
+  },
   runItem: {
     padding: 12,
     borderRadius: 8,
     backgroundColor: "#f6f6f6",
     marginBottom: 8,
+  },
+  runHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
   },
   runText: { color: "#111" },
   deleteButton: {
