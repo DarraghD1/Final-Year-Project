@@ -1,7 +1,7 @@
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from "expo-location";
-import React from "react";
-import { Button, Platform, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Button, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
 import { RunStats } from "../../components/runStats";
 import { useAuth } from "../../context/AuthContext";
@@ -9,10 +9,14 @@ import { useLocation } from "../../hooks/useLocation";
 import { useStopwatch } from "../../hooks/useStopwatch";
 
 
-/* Screen for recording run activity */
+/* Screen for entering goal & recording run activity */
 export default function RunRecorderScreen() {
 
   const { token } = useAuth();
+  const [showRecorder, setShowRecorder] = useState(false);
+  const [goalDistance, setGoalDistance] = useState("");
+  const [goalTime, setGoalTime] = useState("");
+  const [savedGoal, setSavedGoal] = useState<{ distance: string; time: string } | null>(null);
   
   // public access token for mapbox
   MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
@@ -73,6 +77,27 @@ export default function RunRecorderScreen() {
     // reset and start timer when tracking starts
     reset();
     start();
+  };
+
+  // allow user to enter goal
+  const handleEnterGoal = () => {
+    const trimmedDistance = goalDistance.trim();
+    const trimmedTime = goalTime.trim();
+
+    if (!trimmedDistance || !trimmedTime) {
+      Alert.alert("Missing goal", "Enter valid distance and a time, or press Just Run.");
+      return;
+    }
+
+    // apply goal
+    setSavedGoal({ distance: trimmedDistance, time: trimmedTime });
+    // change to recording screen
+    setShowRecorder(true);
+  };
+
+  const handleJustRun = () => {
+    setSavedGoal(null);
+    setShowRecorder(true);
   };
 
   const handlePauseRun = () => {
@@ -159,6 +184,7 @@ try {
     if (!response.ok) {
       const text = await response.text();
       console.warn("Failed to save run:", response.status, text);
+      Alert.alert("Save failed", "Your run could not be saved.");
       return false;
     }
 
@@ -179,13 +205,7 @@ try {
     const ok = await saveRunData(locations, distance, seconds);
 
     if (!ok) {
-      return (
-      <View style={styles.center}>
-        <Text style={styles.warning}>
-          Error: Failed to save run
-        </Text>
-      </View>
-    );
+      return;
     }
 };
 
@@ -194,10 +214,53 @@ try {
   const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
   const elevationGain = getElevationGain(locations);
 
+  // screen user can enter their target distance and time in before run
+  if (!showRecorder) {
+    return (
+      <View style={styles.setupContainer}>
+        <Text style={styles.setupTitle}>Got a goal?</Text>
+        <Text style={styles.setupSubtitle}>
+          Enter your target distance and time or just run.
+        </Text>
+
+        <TextInput
+          value={goalDistance}
+          onChangeText={setGoalDistance}
+          placeholder="Distance goal"
+          style={styles.input}
+          keyboardType="numeric"
+        />
+
+        <TextInput
+          value={goalTime}
+          onChangeText={setGoalTime}
+          placeholder="Time goal"
+          style={styles.input}
+          keyboardType="numeric"
+        />
+
+        <View style={styles.actionButtons}>
+          <View style={styles.buttonSpacing}>
+            <Button title="Enter" onPress={handleEnterGoal} />
+          </View>
+          <Button title="Just Run" onPress={handleJustRun} />
+        </View>
+      </View>
+    );
+  }
+
   // basic UI for run tracking - map and stats
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Run Tracker</Text>
+
+      {/* display users goal (if entered) at top of screen */}
+      {savedGoal ? (
+        <View style={styles.goalCard}>
+          <Text style={styles.goalTitle}>Goal</Text>
+          <Text style={styles.goalText}>Distance: {savedGoal.distance}</Text>
+          <Text style={styles.goalText}>Time: {savedGoal.time}</Text>
+        </View>
+      ) : null}
 
       <RunStats
         timeSeconds={seconds}
@@ -261,7 +324,7 @@ try {
 
 
     </View>
-    </View>       // map view can be added here later
+    </View>
   ); 
 }
 
@@ -269,8 +332,14 @@ try {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 16,
+    paddingTop: 10,
+    backgroundColor: "#fff",
+  },
+  setupContainer: {
+    flex: 1,
+    justifyContent: "center",
     padding: 24,
-    paddingTop: 48,
     backgroundColor: "#fff",
   },
   center: {
@@ -285,11 +354,59 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     textAlign: "center",
+    marginBottom: 10,
+  },
+  setupTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  setupSubtitle: {
+    fontSize: 16,
+    color: "#4b5563",
+    textAlign: "center",
     marginBottom: 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginBottom: 16,
+    backgroundColor: "#f9fafb",
+  },
+  actionButtons: {
+    marginTop: 8,
+  },
+  buttonSpacing: {
+    marginBottom: 12,
+  },
+  goalCard: {
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    backgroundColor: "#eff6ff",
+    borderRadius: 12,
+    padding: 5,
+    marginBottom: 20,
+  },
+  goalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1d4ed8",
+    marginBottom: 8,
+  },
+  goalText: {
+    fontSize: 15,
+    color: "#1f2937",
+    marginBottom: 4,
   },
   mapWrap: {
     height: 300,
-    marginVertical: 12,
+    marginVertical: 1,
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -306,7 +423,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   buttonsRow: {
-    marginTop: "auto",
+    marginTop: 40,
   },
   warning: {
     color: "#f97373",

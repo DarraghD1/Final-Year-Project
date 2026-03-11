@@ -39,7 +39,7 @@ export default function TabsLayout() {
         options={{ 
           tabBarIcon: ({ color, size }) => (
           <FontAwesome5 name="running" size={size} color={color} />),
-          title: "Record" }}
+          title: "Run Tracker" }}
       />
       <Tabs.Screen
         name="runs"
