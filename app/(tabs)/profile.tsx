@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 import { fetchUserProfile, updateUserProfile } from "../../api/user";
 import { useAuth } from "../../context/AuthContext";
 
@@ -92,55 +92,57 @@ export default function ProfileScreen() {
 
   // UI for user profile
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Personalise Your Predictions</Text>
-      <Text style={styles.subtitle}>
-        Add a few details to improve the base model predictions.
-      </Text>
-
-      <Text style={styles.label}>Age</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 22"
-        value={age}
-        onChangeText={setAge}
-        keyboardType="numeric"
-        editable={!loading}
-      />
-
-      <Text style={styles.label}>Sex</Text>
-      <View style={styles.choiceRow}>
-        {SEX_OPTIONS.map((option) => {
-          const selected = sex === option.value;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => setSex(option.value)}
-              style={[
-                styles.choice,
-                selected ? styles.choiceSelected : null,
-              ]}
-            >
-              <Text style={selected ? styles.choiceTextSelected : styles.choiceText}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Pressable
-        style={[styles.button, saving ? styles.buttonDisabled : null]}
-        onPress={onSave}
-        disabled={saving}
-      >
-        <Text style={styles.buttonText}>
-          {saving ? "Saving..." : "Save"}
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Personalise Your Predictions</Text>
+        <Text style={styles.subtitle}>
+          Add a few details to improve the base model predictions.
         </Text>
-      </Pressable>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      {success ? <Text style={styles.successText}>{success}</Text> : null}
-    </View>
+        <Text style={styles.label}>Age</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 22"
+          value={age}
+          onChangeText={setAge}
+          keyboardType="numeric"
+          editable={!loading}
+        />
+
+        <Text style={styles.label}>Sex</Text>
+        <View style={styles.choiceRow}>
+          {SEX_OPTIONS.map((option) => {
+            const selected = sex === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setSex(option.value)}
+                style={[
+                  styles.choice,
+                  selected ? styles.choiceSelected : null,
+                ]}
+              >
+                <Text style={selected ? styles.choiceTextSelected : styles.choiceText}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Pressable
+          style={[styles.button, saving ? styles.buttonDisabled : null]}
+          onPress={onSave}
+          disabled={saving}
+        >
+          <Text style={styles.buttonText}>
+            {saving ? "Saving..." : "Save"}
+          </Text>
+        </Pressable>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {success ? <Text style={styles.successText}>{success}</Text> : null}
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 

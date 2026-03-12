@@ -1,7 +1,7 @@
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from "expo-location";
 import React, { useState } from "react";
-import { Alert, Button, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Button, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
 import { RunStats } from "../../components/runStats";
 import { useAuth } from "../../context/AuthContext";
@@ -14,9 +14,11 @@ export default function RunRecorderScreen() {
 
   const { token } = useAuth();
   const [showRecorder, setShowRecorder] = useState(false);
+  const [showPacing, setShowPacing] = useState(false);
   const [goalDistance, setGoalDistance] = useState("");
   const [goalTime, setGoalTime] = useState("");
   const [savedGoal, setSavedGoal] = useState<{ distance: string; time: string } | null>(null);
+  const [selectedPacing, setSelectedPacing] = useState("positive");
   
   // public access token for mapbox
   MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
@@ -91,12 +93,12 @@ export default function RunRecorderScreen() {
 
     // apply goal
     setSavedGoal({ distance: trimmedDistance, time: trimmedTime });
-    // change to recording screen
-    setShowRecorder(true);
+    setShowPacing(true);
   };
 
   const handleJustRun = () => {
     setSavedGoal(null);
+    setShowPacing(false);
     setShowRecorder(true);
   };
 
@@ -215,36 +217,96 @@ try {
   const elevationGain = getElevationGain(locations);
 
   // screen user can enter their target distance and time in before run
-  if (!showRecorder) {
+  if (!showPacing && !showRecorder) {
     return (
-      <View style={styles.setupContainer}>
-        <Text style={styles.setupTitle}>Got a goal?</Text>
-        <Text style={styles.setupSubtitle}>
-          Enter your target distance and time or just run.
-        </Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.setupContainer}>
+          <Text style={styles.setupTitle}>Got a goal?</Text>
+          <Text style={styles.setupSubtitle}>
+            Enter your target distance and time or just run.
+          </Text>
 
-        <TextInput
-          value={goalDistance}
-          onChangeText={setGoalDistance}
-          placeholder="Distance goal"
-          style={styles.input}
-          keyboardType="numeric"
-        />
+          <TextInput
+            value={goalDistance}
+            onChangeText={setGoalDistance}
+            placeholder="Distance goal (km)"
+            style={styles.input}
+            keyboardType="numeric"
+          />
 
-        <TextInput
-          value={goalTime}
-          onChangeText={setGoalTime}
-          placeholder="Time goal"
-          style={styles.input}
-          keyboardType="numeric"
-        />
+          <TextInput
+            value={goalTime}
+            onChangeText={setGoalTime}
+            placeholder="Time goal (mm:ss)"
+            style={styles.input}
+            keyboardType="numeric"
+          />
 
-        <View style={styles.actionButtons}>
-          <View style={styles.buttonSpacing}>
-            <Button title="Enter" onPress={handleEnterGoal} />
+          <View style={styles.actionButtons}>
+            <View style={styles.buttonSpacing}>
+              <Button title="Enter" onPress={handleEnterGoal} />
+            </View>
+            <Button title="Just Run" onPress={handleJustRun} />
           </View>
-          <Button title="Just Run" onPress={handleJustRun} />
         </View>
+      </TouchableWithoutFeedback>
+    );
+  }
+
+  // screen for pacing strategy
+  if (showPacing && !showRecorder) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Pick your pacing plan</Text>
+
+        <View style={styles.tabList}>
+          <Pressable
+            onPress={() => setSelectedPacing("positive")}
+            style={[
+              styles.tabButton, selectedPacing === "positive" ? styles.tabButtonActive : null,
+            ]}>
+            <Text
+              style={[
+                styles.tabButtonText,
+                selectedPacing === "positive" ? styles.tabButtonTextActive : null,
+              ]}>
+              Positive Pacing
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setSelectedPacing("even")}
+            style={[
+              styles.tabButton,
+              selectedPacing === "even" ? styles.tabButtonActive : null,
+            ]}>
+            <Text
+              style={[
+                styles.tabButtonText,
+                selectedPacing === "even" ? styles.tabButtonTextActive : null,
+              ]}>
+              Even Pacing
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setSelectedPacing("negative")}
+            style={[
+              styles.tabButton,
+              selectedPacing === "negative" ? styles.tabButtonActive : null,
+            ]}>
+            <Text
+              style={[
+                styles.tabButtonText,
+                selectedPacing === "negative" ? styles.tabButtonTextActive : null,
+              ]}>
+              Negative Pacing
+            </Text>
+          </Pressable>
+        </View>
+
+        <Button title="Continue" onPress={() => setShowRecorder(true)} />
+        <Button title="Exit" onPress={() => {setShowRecorder(false), setShowPacing(false)}} />
       </View>
     );
   }
@@ -385,6 +447,32 @@ const styles = StyleSheet.create({
   buttonSpacing: {
     marginBottom: 12,
   },
+  tabList: {
+    flexDirection: "row",
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    backgroundColor: "#f3f4f6",
+  },
+  tabButtonActive: {
+    backgroundColor: "#2563eb",
+  },
+  tabButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1f2937",
+    textAlign: "center",
+  },
+  tabButtonTextActive: {
+    color: "#ffffff",
+  },
   goalCard: {
     borderWidth: 1,
     borderColor: "#dbeafe",
@@ -429,4 +517,5 @@ const styles = StyleSheet.create({
     color: "#f97373",
     textAlign: "center",
   },
+
 });
