@@ -43,3 +43,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# ignore venvs
+ml/.mlvenv/lib
+ml/mlvenv/
