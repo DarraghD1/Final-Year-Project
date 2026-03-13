@@ -1,12 +1,12 @@
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from "expo-location";
 import React, { useState } from "react";
-import { Alert, Button, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
+import { Alert, Button, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
-import { RunStats } from "../../components/runStats";
 import { useAuth } from "../../context/AuthContext";
-import { useLocation } from "../../hooks/useLocation";
-import { useStopwatch } from "../../hooks/useStopwatch";
+import { RunStats } from "../../frontend/components/runStats";
+import { useLocation } from "../../frontend/hooks/useLocation";
+import { useStopwatch } from "../../frontend/hooks/useStopwatch";
 
 
 /* Screen for entering goal & recording run activity */
@@ -216,7 +216,25 @@ try {
   const shouldShowRoute = status !== "idle" && locations && locations.length > 0;
   const elevationGain = getElevationGain(locations);
 
-  // screen user can enter their target distance and time in before run
+  // read in goal dist, convert to number if its a string
+  const targetDistanceKm = Number(savedGoal?.distance ?? goalDistance);
+
+  // convert target time string of hh:mm:ss to seconds
+  const targetTimeSeconds = parseGoalTimeToSeconds(savedGoal?.time ?? goalTime);
+
+  // build the pacing strategy if entries are valid - return empty array if any checks fail
+  const pacingBreakdown =
+    Number(targetDistanceKm > 0) && targetTimeSeconds != null
+      ? getPacingStrat(targetDistanceKm, targetTimeSeconds, selectedPacing): [];
+
+  // compute average pace accross full distance for valid entries - null if invalid entries
+  const averagePace =
+    Number.isFinite(targetDistanceKm) && targetDistanceKm > 0 && targetTimeSeconds != null
+      ? formatSecondsToPace(targetTimeSeconds / targetDistanceKm)
+      : null;
+
+
+  // *****************************    Goal setting screen    *****************************
   if (!showPacing && !showRecorder) {
     return (
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -253,12 +271,94 @@ try {
     );
   }
 
-  // screen for pacing strategy
+
+// take target time and format it
+function parseGoalTimeToSeconds(value: string) {
+
+  const parts = value.trim().split(":");
+
+  // for times mm:ss
+  if (parts.length === 2) {
+    const minutes = Number(parts[0]);
+    const seconds = Number(parts[1]);
+
+    // check for non valid numbers
+    if (Number.isNaN(minutes) || Number.isNaN(seconds)) {
+      return null;
+    }
+    return minutes * 60 + seconds;
+  }
+
+  // for times hh:mm:ss
+  if (parts.length === 3) {
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+    const seconds = Number(parts[2]);
+
+    if (Number.isNaN(hours) || Number.isNaN(minutes) || Number.isNaN(seconds)) {
+      return null;
+    }
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  return null;
+}
+
+// pace formatting to give km/min
+function formatSecondsToPace(totalSeconds: number) {
+
+  const rounded = Math.round(totalSeconds);
+  const minutes = Math.floor(rounded / 60);
+  const seconds = rounded % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+// pacing strategy function reads in user target distance, time and desired pacing type
+function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: string) {
+
+  const list: { label: string; pace: string; split: string; }[] = [];
+
+  // ensure valid entries
+  if (!distanceKm || !totalSeconds || distanceKm <= 0 || totalSeconds <= 0) {
+    return list;
+  }
+
+  // calculate average pace required
+  const avgPace = totalSeconds / distanceKm;
+
+  for (let i = 1; i <= distanceKm; i++) {
+
+    // even strat maintains constant pace oveer the race
+    let pace = avgPace;
+
+    // positive pacing starts fast and finsih slower
+    if (pacingType === "positive") {
+      pace = avgPace - 10 + (i - 1) * 5;    // basic pacing equation for now - just adds 5s on to avg pace each km
+    }
+
+    // negative pacing starts slower than you finish
+    if (pacingType === "negative") {
+      pace = avgPace + 10 - (i - 1) * 5;    // inverse of positive pacing
+    }
+
+    // add pace segments to list for different strategies
+    list.push({
+      label: `Km ${i}`,
+      pace: `${formatSecondsToPace(pace)} /km`,
+      split: formatSecondsToPace(pace),
+    });
+  }
+  return list;
+}
+
+
+  // *****************************   Pacing strategy screen   *****************************
   if (showPacing && !showRecorder) {
     return (
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.pacingContainer}>
         <Text style={styles.title}>Pick your pacing plan</Text>
 
+        {/* tab list user can click through to get different pacing strategies */}
         <View style={styles.tabList}>
           <Pressable
             onPress={() => setSelectedPacing("positive")}
@@ -305,13 +405,40 @@ try {
           </Pressable>
         </View>
 
-        <Button title="Continue" onPress={() => setShowRecorder(true)} />
-        <Button title="Exit" onPress={() => {setShowRecorder(false), setShowPacing(false)}} />
-      </View>
+        {/* display pacing segments based on strat */}
+        <View style={styles.pacingCard}>
+          <Text style={styles.pacingTitle}>Target Strategy</Text>
+          <Text style={styles.pacingMeta}>
+            Goal: {savedGoal?.distance ?? goalDistance} km in {savedGoal?.time ?? goalTime}
+          </Text>
+          {averagePace ? (
+            <Text style={styles.pacingMeta}>Average pace: {averagePace} /km</Text>
+          ) : (
+            <Text style={styles.warning}>Enter a valid distance and time goal.</Text>
+          )}
+
+          {pacingBreakdown.map((split) => (
+            <View key={split.label} style={styles.pacingRow}>
+              <Text style={styles.pacingRowLabel}>{split.label}</Text>
+              <View>
+                <Text style={styles.pacingRowValue}>Split: {split.pace}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.pacingButtons}>
+          <View style={styles.buttonSpacing}>
+            <Button title="Continue" onPress={() => setShowRecorder(true)} />
+          </View>
+          <Button title="Exit" onPress={() => { setShowRecorder(false), setShowPacing(false); }}/>
+        </View>
+      </ScrollView>
     );
   }
 
-  // basic UI for run tracking - map and stats
+
+  // *****************************    Run recording screen    *****************************
   return (
     <View style={styles.container}>
 
@@ -324,12 +451,14 @@ try {
         </View>
       ) : null}
 
+      {/* live run stats */}
       <RunStats
         timeSeconds={seconds}
         distanceMeters={distance}
         elevationGainMeters={elevationGain}
       />
 
+  {/* insert Mapbox map */}
   {(Platform.OS === 'ios' || Platform.OS === 'android') && (
         <View style={styles.mapWrap}>
 
@@ -472,6 +601,58 @@ const styles = StyleSheet.create({
   },
   tabButtonTextActive: {
     color: "#ffffff",
+  },
+  pacingContainer: {
+    padding: 16,
+    paddingTop: 10,
+    backgroundColor: "#fff",
+  },
+  pacingCard: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: "#f9fafb",
+    marginBottom: 20,
+  },
+  pacingTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  pacingMeta: {
+    fontSize: 14,
+    color: "#4b5563",
+    marginBottom: 6,
+  },
+  pacingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  pacingRowLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  pacingRowValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    textAlign: "right",
+  },
+  pacingRowSubvalue: {
+    fontSize: 13,
+    color: "#6b7280",
+    textAlign: "right",
+    marginTop: 2,
+  },
+  pacingButtons: {
+    paddingBottom: 24,
   },
   goalCard: {
     borderWidth: 1,

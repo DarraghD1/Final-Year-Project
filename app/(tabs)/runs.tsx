@@ -227,6 +227,8 @@ export default function RunsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
+
+            {/* run prediction entry */}
             <Text style={styles.title}>Predict a Run</Text>
             <TextInput
               style={styles.input}
@@ -248,6 +250,7 @@ export default function RunsScreen() {
               {predictError ? <Text style={styles.errorText}>{predictError}</Text> : null}
             </View>
 
+            {/* personal bests display */}
             <Text style={[styles.title, styles.sectionTitle]}>Personal Bests</Text>
             <View style={styles.pbGrid}>
               <View style={styles.pbCard}>
@@ -269,6 +272,8 @@ export default function RunsScreen() {
             <Text style={[styles.title, styles.sectionTitle]}>Your Runs</Text>
           </View>
         }
+        
+        // run data from backend formatted and displayed in card  
         renderItem={({ item }) => (
           <View style={styles.runItem}>
             <View style={styles.runHeader}>
@@ -313,11 +318,25 @@ export default function RunsScreen() {
   );
 }
 
+// styling
 const styles = StyleSheet.create({
-  container: { padding: 16, flex: 1, backgroundColor: "#fff" },
-  listContent: { paddingBottom: 24 },
-  title: { fontSize: 22, fontWeight: "600", marginBottom: 8 },
-  sectionTitle: { marginTop: 20 },
+  container: { 
+    padding: 16, 
+    flex: 1, 
+    paddingTop: 10,
+    backgroundColor: "#ffffffff" 
+  },
+  listContent: { 
+    paddingBottom: 24 
+  },
+  title: { 
+    fontSize: 22, 
+    fontWeight: "600", 
+    marginBottom: 8 
+  },
+  sectionTitle: { 
+    marginTop: 20 
+  },
   input: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
