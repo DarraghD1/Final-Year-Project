@@ -45,5 +45,4 @@ app-example
 /android
 
 # ignore venvs
-ml/.mlvenv/lib
-ml/mlvenv/
+.venv/
