@@ -220,7 +220,8 @@ def extract_weather_summary(payload: dict):
 
     precip_val = None
     precip_field = source.get("precipitation")
-    precip_val = _num(
+    if isinstance(precip_field, dict):
+        precip_val = _num(
             precip_field.get("amount")
             or precip_field.get("intensity")
             or precip_field.get("rate")
@@ -252,22 +253,20 @@ def _load_user_model(user_id: int):
         return None
     return joblib.load(model_path)
 
-# convert sex to 0/1 - default to 0 (might change later)
-def _sex_to_code(sex):
-    if not sex:
-        return 0.0
-    s = sex.strip().lower()
-    if s in ("male", "m"):
-        return 0.0
-    if s in ("female", "f"):
-        return 1.0
-    return 0.5
-# build feature vector for model (retunr dist, age, sex in list)
-def _feature_vector(distance_m: int, user: User):
+# func to fetch live weather data for prediction
+def _prediction_weather_values(payload: PredictRequest, runs: List[UserRun]):
+    try:
+        weather = fetch_current_weather(payload.lat, payload.lon)
+        temp_val, precip_val, _, _ = extract_weather_summary(weather)
+        return temp_val or 0.0, precip_val or 0.0
+    except Exception as exc:
+        print(f"Prediction weather lookup failed: {exc}")
+
+
+# build feature vector for personal model
+def _feature_vector(distance_m: int, weather_temp: float, weather_precip_mm: float):
     distance_km = distance_m / 1000
-    age_val = float(user.age) if user.age is not None else 0.0
-    sex_val = _sex_to_code(user.sex)
-    return [distance_km, age_val, sex_val]
+    return [distance_km, weather_temp, weather_precip_mm]
 
 # predict run time
 @app.post("/ml/predict", response_model=PredictResponse)
@@ -286,8 +285,7 @@ def predict_run_time(
     user_runs = session.exec(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
-    valid_runs = [r for r in user_runs]
-    run_count = len(valid_runs)
+    run_count = len(user_runs)
 
     # low end of recorded runs user needs for personalised model input
     blend_lower_bound = 2
@@ -307,24 +305,20 @@ def predict_run_time(
 
     # users with less than 2 runs use base model only
     if run_count >= blend_lower_bound:
-        user_model = _load_user_model(current_user.id)
-
-        # train base model for user if it doesnt exit
-        if user_model is None:
-            try:
-                train_user_model(session, current_user.id)
-                user_model = _load_user_model(current_user.id)
-            except Exception as exc:
-                print(f"User model retrain failed: {exc}")
+        try:
+            train_user_model(session, current_user.id)
+            user_model = _load_user_model(current_user.id)
+        except Exception as exc:
+            print(f"User model retrain failed: {exc}")
 
         # ensure correct number of features 
         expected = 3
-        n = getattr(user_model, "n_features_in_", expected)
-        if n != expected:
+        n = getattr(user_model, "n_features_in_", expected) if user_model is not None else expected
+        if user_model is not None and n != expected:
             raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"Model schema mismatch (expected {expected} features, got {n}). Retrain model.",
-    )
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model schema mismatch (expected {expected} features, got {n}). Retrain model.",
+            )
 
     # base prediction
     base_pred_secs = float(predict_base_seconds(base_model, payload.distance, current_user))
@@ -332,7 +326,9 @@ def predict_run_time(
     # personalised prediction if model exists
     personal_pred_secs = None
     if user_model is not None:
-        features = _feature_vector(payload.distance, current_user)
+
+        weather_temp, weather_precip_mm = _prediction_weather_values(payload, user_runs)
+        features = _feature_vector(payload.distance, weather_temp, weather_precip_mm)
         predicted_minutes = float(user_model.predict([features])[0])
         personal_pred_secs = predicted_minutes * 60
 

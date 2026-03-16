@@ -1,3 +1,4 @@
+import * as Location from "expo-location";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -200,18 +201,33 @@ export default function RunsScreen() {
     setPredictError(null);
     setPredicting(true);
 
-    // call prediction API and handle response
     try {
+      // convert km to meters
       const distanceMeters = distanceKm * 1000;
-      const result = await predictRunTime(distanceMeters, token);
+      let lat: number | null = null;
+      let lon: number | null = null;
+
+      // need permission for location if not granted already
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status === "granted") {
+          const location = await Location.getCurrentPositionAsync({});
+          lat = location.coords.latitude;
+          lon = location.coords.longitude;
+        }
+      } catch (locationError) {
+        console.warn("Unable to get location for prediction", locationError);
+      }
+
+      // call API to predict time given dist and coords
+      const result = await predictRunTime(distanceMeters, lat, lon, token);
+
+      // save predicted time
       setPredictedSeconds(result.predicted_time_seconds);
-    } catch (err) {
+    } 
+    // error handling
+    catch (err) {
       console.warn("Prediction failed", err);
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "Prediction failed. Train the model first.";
-      setPredictError(message);
     } finally {
       setPredicting(false);
     }

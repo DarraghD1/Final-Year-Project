@@ -32,6 +32,8 @@ class CreateRun(BaseModel):
 
 class PredictRequest(BaseModel):
     distance: int
+    lat: Optional[float] = None
+    lon: Optional[float] = None
 
 class PredictResponse(BaseModel):
     predicted_time_seconds: int
