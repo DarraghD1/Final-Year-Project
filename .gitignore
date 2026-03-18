@@ -46,6 +46,7 @@ app-example
 
 # ignore venvs
 .venv/
+.backendvenv/
 
 # ignore ml model artifacts
 __pycache__/
