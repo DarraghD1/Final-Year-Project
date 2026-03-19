@@ -4,11 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from typing import List
 import joblib
+import numpy as np
 from pathlib import Path
+import shap
 
 from database import init_db, get_session
 from models import User, UserRun
-from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse, UserProfileRead, UserProfileUpdate
+from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse, ShapExplanation, UserProfileRead, UserProfileUpdate
 from ml_training import train_user_model
 from base_model import load_base_model, predict_base_seconds
 from auth_utilities import (
@@ -119,6 +121,28 @@ def list_runs(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
 
+# allow users to delete past runs
+@app.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_run(
+    run_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    run = session.get(UserRun, run_id)
+    if not run or run.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run not found.",
+        )
+
+    session.delete(run)
+    session.commit()
+
+    try:
+        train_user_model(session, current_user.id)
+    except Exception as exc:
+        print(f"Model training failed: {exc}")
+
 
 # ========== user profile routes ==========
 
@@ -198,7 +222,8 @@ def extract_weather_summary(payload: dict):
 
     precip_val = None
     precip_field = source.get("precipitation")
-    precip_val = _num(
+    if isinstance(precip_field, dict):
+        precip_val = _num(
             precip_field.get("amount")
             or precip_field.get("intensity")
             or precip_field.get("rate")
@@ -230,22 +255,61 @@ def _load_user_model(user_id: int):
         return None
     return joblib.load(model_path)
 
-# convert sex to 0/1 - default to 0 (might change later)
-def _sex_to_code(sex):
-    if not sex:
-        return 0.0
-    s = sex.strip().lower()
-    if s in ("male", "m"):
-        return 0.0
-    if s in ("female", "f"):
-        return 1.0
-    return 0.5
-# build feature vector for model (retunr dist, age, sex in list)
-def _feature_vector(distance_m: int, user: User):
+
+def _personal_model_parts(user_model):
+    if isinstance(user_model, dict):
+        return (
+            user_model.get("model"),
+            user_model.get("feature_names"),
+            user_model.get("background_data"),
+        )
+    return user_model, None, None
+
+# func to fetch live weather data for prediction
+def _prediction_weather_values(payload: PredictRequest, runs: List[UserRun]):
+    try:
+        weather = fetch_current_weather(payload.lat, payload.lon)
+        temp_val, precip_val, _, _ = extract_weather_summary(weather)
+        return temp_val or 0.0, precip_val or 0.0
+    except Exception as exc:
+        print(f"Prediction weather lookup failed: {exc}")
+        return 0.0, 0.0
+
+
+# build feature vector for personal model
+def _feature_vector(distance_m: int, weather_temp: float, weather_precip_mm: float):
     distance_km = distance_m / 1000
-    age_val = float(user.age) if user.age is not None else 0.0
-    sex_val = _sex_to_code(user.sex)
-    return [distance_km, age_val, sex_val]
+    return [distance_km, weather_temp, weather_precip_mm]
+
+
+def _personal_shap(model, features, feature_names, background_data):
+
+    # ensure all inputs are valid
+    if shap is None or model is None or feature_names is None or background_data is None:
+        return None
+
+    try:
+        # get required features from users data and convert to an array
+        background = np.array(background_data, dtype=float)
+        # split into rows
+        row = np.array([features], dtype=float)
+    
+        # apply shap explainer to each row (feature)
+        explainer = shap.Explainer(model, background, feature_names=feature_names)
+        explanation = explainer(row)
+
+        # predicted time without feature influence
+        base_seconds = float(explanation.base_values[0]) * 60.0
+        values_seconds = {}
+
+        # get each features influence in the context of addinh/reducing time
+        for i, name in enumerate(feature_names):
+            values_seconds[name] = float(explanation.values[0][i]) * 60.0
+        return ShapExplanation(base_seconds=base_seconds, values_seconds=values_seconds)
+    
+    except Exception as exc:
+        print(f"SHAP explanation failed: {exc}")
+        return None
 
 # predict run time
 @app.post("/ml/predict", response_model=PredictResponse)
@@ -264,8 +328,7 @@ def predict_run_time(
     user_runs = session.exec(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
-    valid_runs = [r for r in user_runs]
-    run_count = len(valid_runs)
+    run_count = len(user_runs)
 
     # low end of recorded runs user needs for personalised model input
     blend_lower_bound = 2
@@ -285,34 +348,41 @@ def predict_run_time(
 
     # users with less than 2 runs use base model only
     if run_count >= blend_lower_bound:
-        user_model = _load_user_model(current_user.id)
-
-        # train base model for user if it doesnt exit
-        if user_model is None:
-            try:
-                train_user_model(session, current_user.id)
-                user_model = _load_user_model(current_user.id)
-            except Exception as exc:
-                print(f"User model retrain failed: {exc}")
+        try:
+            train_user_model(session, current_user.id)
+            user_model = _load_user_model(current_user.id)
+        except Exception as exc:
+            print(f"User model retrain failed: {exc}")
 
         # ensure correct number of features 
         expected = 3
-        n = getattr(user_model, "n_features_in_", expected)
-        if n != expected:
+        personal_model, _, _ = _personal_model_parts(user_model)
+        n = getattr(personal_model, "n_features_in_", expected) if personal_model is not None else expected
+        if user_model is not None and n != expected:
             raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"Model schema mismatch (expected {expected} features, got {n}). Retrain model.",
-    )
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model schema mismatch (expected {expected} features, got {n}). Retrain model.",
+            )
 
     # base prediction
     base_pred_secs = float(predict_base_seconds(base_model, payload.distance, current_user))
 
     # personalised prediction if model exists
     personal_pred_secs = None
+    shap_data = None
     if user_model is not None:
-        features = _feature_vector(payload.distance, current_user)
-        predicted_minutes = float(user_model.predict([features])[0])
+        # get outputs from personal model func
+        personal_model, feature_names, background_data = _personal_model_parts(user_model)
+        # get live weather data
+        weather_temp, weather_precip_mm = _prediction_weather_values(payload, user_runs)
+        # store model features
+        features = _feature_vector(payload.distance, weather_temp, weather_precip_mm)
+        # get prediction
+        predicted_minutes = float(personal_model.predict([features])[0])
+        # convert min prediction to secs
         personal_pred_secs = predicted_minutes * 60
+        # store shap data from prediction
+        shap_data = _personal_shap(personal_model, features, feature_names, background_data)
 
     # combine predictions, weighting each one based on how many runs the user has recorded
     if personal_pred_secs is None or run_count < blend_lower_bound:
@@ -333,7 +403,7 @@ def predict_run_time(
 
     # ensure no negative preds
     predicted_seconds = int(round(max(predicted_seconds, 0)))
-    return PredictResponse(predicted_time_seconds=predicted_seconds)
+    return PredictResponse(predicted_time_seconds=predicted_seconds, shap=shap_data)
 
 
 # ========== root and CORS ==========

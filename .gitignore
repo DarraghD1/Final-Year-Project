@@ -43,3 +43,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# ignore venvs
+.venv/
+.backendvenv/
+
+# ignore ml model artifacts
+__pycache__/

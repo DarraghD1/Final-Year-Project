@@ -38,3 +38,11 @@ export async function fetchRuns(token: string): Promise<Run[]> {
   if (!res.ok) throw new Error(`GET /runs failed: ${res.status}`);
   return res.json();
 }
+
+export async function deleteRun(runId: number | string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/runs/${runId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`DELETE /runs/${runId} failed: ${res.status}`);
+}

@@ -4,21 +4,26 @@ import { API_BASE_URL } from "./auth";
 
 export type PredictionResponse = {
   predicted_time_seconds: number;
+  
+  shap?: {base_seconds: number; 
+    values_seconds: Record<string, number>;
+  } | null;
 };
 
-// takes in distance in meters returns prediction time in mins:secs
+// takes in distance in meters + lat and long for weather data
 export async function predictRunTime(
   distanceMeters: number,
+  lat: number | null,
+  lon: number | null,
   token: string
 ): Promise<PredictionResponse> {
-  
   const res = await fetch(`${API_BASE_URL}/ml/predict`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ distance: Math.round(distanceMeters) }),
+    body: JSON.stringify({ distance: Math.round(distanceMeters), lat, lon }),
   });
 
   // error handling

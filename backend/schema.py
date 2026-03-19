@@ -32,9 +32,16 @@ class CreateRun(BaseModel):
 
 class PredictRequest(BaseModel):
     distance: int
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+class ShapExplanation(BaseModel):
+    base_seconds: float
+    values_seconds: dict[str, float]
 
 class PredictResponse(BaseModel):
     predicted_time_seconds: int
+    shap: Optional[ShapExplanation] = None
 
 # req data frim user profile attributes
 class UserProfileRead(BaseModel):
