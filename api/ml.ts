@@ -4,6 +4,10 @@ import { API_BASE_URL } from "./auth";
 
 export type PredictionResponse = {
   predicted_time_seconds: number;
+  
+  shap?: {base_seconds: number; 
+    values_seconds: Record<string, number>;
+  } | null;
 };
 
 // takes in distance in meters + lat and long for weather data

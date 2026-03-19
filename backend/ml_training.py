@@ -10,6 +10,7 @@ from models import UserRun, User
 # save models under ml_models (wont scale well but fine for nwo)
 MODEL_DIR = Path(__file__).resolve().parent / "ml_models"
 BASE_MODEL = "base_ridge.joblib"                            # initial start model
+PERSONAL_FEATURE_NAMES = ["distance_km", "weather_temp", "weather_precip_mm"]
 
 # function to convert sex to 0/1
 def _sex_to_code(sex: Optional[str]) -> float:
@@ -100,22 +101,33 @@ def train_user_model(session: Session, user_id: int) -> Optional[Path]:
 
     for run in runs:
         feat = _personal_features_for_run(run)
+        if feat is None:
+            continue
         features, target = feat
 
         # store in X an y
         X.append(features)
         y.append(target)
 
+    if len(X) < 2:
+        _remove_user_model(user_id)
+        return None
 
     model = LinearRegression()
     
     # fit model to users data
     model.fit(X, y)
 
+    artifact = {
+        "model": model,
+        "feature_names": PERSONAL_FEATURE_NAMES,
+        "background_data": X,
+    }
+
     # save model as joblib file under users id
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     model_path = _model_path_for_user(user_id)
-    joblib.dump(model, model_path)
+    joblib.dump(artifact, model_path)
     return model_path
 
 '''

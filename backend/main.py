@@ -4,11 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from typing import List
 import joblib
+import numpy as np
 from pathlib import Path
+import shap
 
 from database import init_db, get_session
 from models import User, UserRun
-from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse, UserProfileRead, UserProfileUpdate
+from schema import UserCreate, UserRead, Token, LoginRequest, CreateRun, PredictRequest, PredictResponse, ShapExplanation, UserProfileRead, UserProfileUpdate
 from ml_training import train_user_model
 from base_model import load_base_model, predict_base_seconds
 from auth_utilities import (
@@ -253,6 +255,16 @@ def _load_user_model(user_id: int):
         return None
     return joblib.load(model_path)
 
+
+def _personal_model_parts(user_model):
+    if isinstance(user_model, dict):
+        return (
+            user_model.get("model"),
+            user_model.get("feature_names"),
+            user_model.get("background_data"),
+        )
+    return user_model, None, None
+
 # func to fetch live weather data for prediction
 def _prediction_weather_values(payload: PredictRequest, runs: List[UserRun]):
     try:
@@ -261,12 +273,43 @@ def _prediction_weather_values(payload: PredictRequest, runs: List[UserRun]):
         return temp_val or 0.0, precip_val or 0.0
     except Exception as exc:
         print(f"Prediction weather lookup failed: {exc}")
+        return 0.0, 0.0
 
 
 # build feature vector for personal model
 def _feature_vector(distance_m: int, weather_temp: float, weather_precip_mm: float):
     distance_km = distance_m / 1000
     return [distance_km, weather_temp, weather_precip_mm]
+
+
+def _personal_shap(model, features, feature_names, background_data):
+
+    # ensure all inputs are valid
+    if shap is None or model is None or feature_names is None or background_data is None:
+        return None
+
+    try:
+        # get required features from users data and convert to an array
+        background = np.array(background_data, dtype=float)
+        # split into rows
+        row = np.array([features], dtype=float)
+    
+        # apply shap explainer to each row (feature)
+        explainer = shap.Explainer(model, background, feature_names=feature_names)
+        explanation = explainer(row)
+
+        # predicted time without feature influence
+        base_seconds = float(explanation.base_values[0]) * 60.0
+        values_seconds = {}
+
+        # get each features influence in the context of addinh/reducing time
+        for i, name in enumerate(feature_names):
+            values_seconds[name] = float(explanation.values[0][i]) * 60.0
+        return ShapExplanation(base_seconds=base_seconds, values_seconds=values_seconds)
+    
+    except Exception as exc:
+        print(f"SHAP explanation failed: {exc}")
+        return None
 
 # predict run time
 @app.post("/ml/predict", response_model=PredictResponse)
@@ -313,7 +356,8 @@ def predict_run_time(
 
         # ensure correct number of features 
         expected = 3
-        n = getattr(user_model, "n_features_in_", expected) if user_model is not None else expected
+        personal_model, _, _ = _personal_model_parts(user_model)
+        n = getattr(personal_model, "n_features_in_", expected) if personal_model is not None else expected
         if user_model is not None and n != expected:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -325,12 +369,20 @@ def predict_run_time(
 
     # personalised prediction if model exists
     personal_pred_secs = None
+    shap_data = None
     if user_model is not None:
-
+        # get outputs from personal model func
+        personal_model, feature_names, background_data = _personal_model_parts(user_model)
+        # get live weather data
         weather_temp, weather_precip_mm = _prediction_weather_values(payload, user_runs)
+        # store model features
         features = _feature_vector(payload.distance, weather_temp, weather_precip_mm)
-        predicted_minutes = float(user_model.predict([features])[0])
+        # get prediction
+        predicted_minutes = float(personal_model.predict([features])[0])
+        # convert min prediction to secs
         personal_pred_secs = predicted_minutes * 60
+        # store shap data from prediction
+        shap_data = _personal_shap(personal_model, features, feature_names, background_data)
 
     # combine predictions, weighting each one based on how many runs the user has recorded
     if personal_pred_secs is None or run_count < blend_lower_bound:
@@ -351,7 +403,7 @@ def predict_run_time(
 
     # ensure no negative preds
     predicted_seconds = int(round(max(predicted_seconds, 0)))
-    return PredictResponse(predicted_time_seconds=predicted_seconds)
+    return PredictResponse(predicted_time_seconds=predicted_seconds, shap=shap_data)
 
 
 # ========== root and CORS ==========

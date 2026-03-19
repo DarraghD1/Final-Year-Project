@@ -88,6 +88,8 @@ export default function RunsScreen() {
   const [predicting, setPredicting] = useState(false);
   const [predictedSeconds, setPredictedSeconds] = useState<number | null>(null);
   const [predictError, setPredictError] = useState<string | null>(null);
+  const [shapBaseSeconds, setShapBaseSeconds] = useState<number | null>(null);
+  const [shapValues, setShapValues] = useState<Record<string, number> | null>(null);
 
   // load runs from backend
   const loadRuns = useCallback(async () => {
@@ -121,6 +123,13 @@ export default function RunsScreen() {
     const seconds = s % 60;
     if (hours > 0) return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  };
+
+  // format added and subtracted times from shap
+  const formatSignedSeconds = (secs?: number) => {
+    if (secs == null) return "-";
+    const sign = secs >= 0 ? "+" : "-";
+    return `${sign}${Math.round(Math.abs(secs))} sec`;
   };
 
   // convert distance to km
@@ -199,6 +208,8 @@ export default function RunsScreen() {
       return;
     }
     setPredictError(null);
+    setShapBaseSeconds(null);
+    setShapValues(null);
     setPredicting(true);
 
     try {
@@ -224,10 +235,13 @@ export default function RunsScreen() {
 
       // save predicted time
       setPredictedSeconds(result.predicted_time_seconds);
+      setShapBaseSeconds(result.shap?.base_seconds ?? null);
+      setShapValues(result.shap?.values_seconds ?? null);
     } 
     // error handling
     catch (err) {
       console.warn("Prediction failed", err);
+      setPredictError("Prediction failed.");
     } finally {
       setPredicting(false);
     }
@@ -263,6 +277,13 @@ export default function RunsScreen() {
               <Text style={styles.predictionValue}>
                 {predictedSeconds == null ? "-" : formatTime(predictedSeconds)}
               </Text>
+              {/* display SHAP value if available */}
+              {shapValues ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text>Temp impact: {formatSignedSeconds(shapValues.weather_temp)}</Text>
+                  <Text>Precip impact: {formatSignedSeconds(shapValues.weather_precip_mm)}</Text>
+                </View>
+              ) : null}
               {predictError ? <Text style={styles.errorText}>{predictError}</Text> : null}
             </View>
 
