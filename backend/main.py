@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, status
+from datetime import UTC, datetime
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from typing import List
@@ -93,6 +94,7 @@ def create_run(
         user_id=current_user.id,
         distance=run.distance,
         time=run.time,
+        completed_at=run.completed_at or datetime.now(UTC),
         elevation_gain=run.elevation_gain,
         weather_temp=weather_temp,
         weather_precip_mm=weather_precip_mm,

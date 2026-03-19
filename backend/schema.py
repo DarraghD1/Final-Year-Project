@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 
 # request and response models dor api
 class UserCreate(BaseModel):
@@ -26,6 +27,7 @@ class LoginRequest(BaseModel):
 class CreateRun(BaseModel):
     distance: int
     time: int
+    completed_at: Optional[datetime] = None
     elevation_gain: Optional[float] = None
     lat: Optional[float] = None
     lon: Optional[float] = None

@@ -6,6 +6,7 @@ export type Run = {
   id: number | string;
   distance?: number;
   time?: number;
+  completed_at?: string;
   elevation_gain?: number | null;
   weather_temp?: number | null;
   weather_precip_mm?: number | null;
@@ -15,7 +16,7 @@ export type Run = {
 
 // takes in run data stores it under new run in db
 export async function createRun(
-  run: { distance: number; time: number; elevation_gain?: number; lat?: number; lon?: number },
+  run: { distance: number; time: number; completed_at?: number; elevation_gain?: number; lat?: number; lon?: number },
   token: string
 ): Promise<Run> {
   const res = await fetch(`${API_BASE_URL}/runs`, {
