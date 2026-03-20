@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "700", marginBottom: 6 },
   subtitle: { color: "#4f4f4f", marginBottom: 16 },
   label: { fontWeight: "600", marginBottom: 6, marginTop: 12 },
-  input: {
+   input: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
     padding: 10,

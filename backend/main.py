@@ -29,6 +29,8 @@ app = FastAPI(title="Running App API")
 # initialise database
 init_db()
 
+
+
 # ========== auth routes ==========
 
 @app.post("/auth/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -62,6 +64,8 @@ def login(login_data: LoginRequest, session: Session = Depends(get_session)):
         )
     access_token = create_access_token({"sub": str(user.id)})
     return Token(access_token=access_token)
+
+
 
 # ========== run routes ==========
 # create run for current user and store in db
@@ -144,6 +148,7 @@ def delete_run(
         train_user_model(session, current_user.id)
     except Exception as exc:
         print(f"Model training failed: {exc}")
+
 
 
 # ========== user profile routes ==========
@@ -248,6 +253,7 @@ def get_weather(lat: float, lon: float, hours: int):
     return fetch_weather(lat, lon, hours)
 
 
+
 # ========== ML prediction ==========
 
 # helper loads user-specific ml model from joblib
@@ -284,6 +290,121 @@ def _feature_vector(distance_m: int, weather_temp: float, weather_precip_mm: flo
     return [distance_km, weather_temp, weather_precip_mm]
 
 
+# convert mins/km to secs/km
+def _seconds_per_km(run: UserRun):
+
+    if run.distance is None or run.time is None or run.distance <= 0 or run.time <= 0:
+        return None
+    return float(run.time) / (float(run.distance) / 1000.0)
+ 
+
+# low end of recorded runs user needs for personalised model input
+blend_lower_bound = 2
+# cut off point for base model (assume user data to be good enough for accurate preds after thsi many runs)
+blend_upper_bound = 8
+
+# helper blends predictions outside of _pred_run_time() [getting too messy]
+def _blend_prediction_seconds(
+    distance_m: int,
+    current_user: User,
+    base_model,
+    user_model,
+    run_count: int,
+    weather_temp: float = 0.0,
+    weather_precip_mm: float = 0.0,
+):
+
+    # base prediction - return this if no user model exits or is below lower bound
+    base_pred_secs = float(predict_base_seconds(base_model, distance_m, current_user))
+    if user_model is None or run_count < blend_lower_bound:
+        return base_pred_secs
+
+    # get personal model, features and personal pred from helpers
+    personal_model, _, _ = _personal_model_parts(user_model)
+    features = _feature_vector(distance_m, weather_temp, weather_precip_mm)
+    personal_pred_secs = float(personal_model.predict([features])[0]) * 60.0
+
+    # apply min-max function to get [0-1] weighting to apply to each model
+    weight = (run_count - blend_lower_bound) / float(blend_upper_bound - blend_lower_bound)
+    if weight < 0:
+        weight = 0.0
+    if weight > 1:
+        weight = 1.0
+
+    # apply weighting to the models and add to get blended prediction
+    return (weight * personal_pred_secs) + ((1 - weight) * base_pred_secs)
+
+
+# take users recent performance into account 
+def _recent_performance_adjustment(
+    user_runs: List[UserRun],
+    predicted_seconds: float,
+    current_user: User,
+    base_model,
+    user_model,
+    run_count: int,
+):
+    # check for bad inputs
+    if predicted_seconds <= 0:
+        return predicted_seconds, None, None
+
+    # only keep usable runs - requires at least 2
+    valid_runs = [run for run in user_runs if _seconds_per_km(run) is not None]
+    if len(valid_runs) < 2:
+        return predicted_seconds, None, None
+
+    # use the most recent runs only, since they are the best signal for current form
+    valid_runs.sort(key=lambda run: run.completed_at, reverse=True)
+    recent_runs = valid_runs[:5]
+
+    # accumulate a weighted average of how far each real run was from its expected time
+    total_change = 0.0
+    total_weight = 0.0
+
+
+    for i, run in enumerate(recent_runs):
+        # estimate what this run should have looked like using the same blend logic
+        expected_seconds = _blend_prediction_seconds(
+            run.distance,
+            current_user,
+            base_model,
+            user_model,
+            run_count,
+            float(run.weather_temp or 0.0),
+            float(run.weather_precip_mm or 0.0),
+        )
+        if expected_seconds <= 0:
+            continue
+
+        # positive means runner was slower than predicted, negative means faster
+        percent_change = (run.time - expected_seconds) / expected_seconds
+
+        # give newer runs more influence than older ones
+        weight = len(recent_runs) - i
+
+        # store weighted change so it can be averaged after the loop
+        total_change += percent_change * weight
+        total_weight += weight
+
+    if total_weight == 0:
+        return predicted_seconds, None, None
+
+    # users recent form score compared to expected performance
+    average_change = total_change / total_weight
+
+    # limit recent form score to ±5%
+    form_influence = max(-0.05, min(0.05, average_change))
+
+    # mult form influence by prediction to get how many secs to add/subtract
+    adjusted_seconds = round(predicted_seconds * form_influence)
+
+    # add form to predicted time
+    adjusted_pred = max(predicted_seconds + adjusted_seconds, 0)
+
+    # return: new prediction time, change in secs from original pred, and avg form as a percent
+    return adjusted_pred, adjusted_seconds
+
+
 def _personal_shap(model, features, feature_names, background_data):
 
     # ensure all inputs are valid
@@ -315,6 +436,7 @@ def _personal_shap(model, features, feature_names, background_data):
 
 # predict run time
 @app.post("/ml/predict", response_model=PredictResponse)
+
 def predict_run_time(
     payload: PredictRequest,
     session: Session = Depends(get_session),
@@ -331,12 +453,7 @@ def predict_run_time(
         select(UserRun).where(UserRun.user_id == current_user.id)
     ).all()
     run_count = len(user_runs)
-
-    # low end of recorded runs user needs for personalised model input
     blend_lower_bound = 2
-
-    # cut off point for base model (assume user predictions to be enough accurate after this many runs)
-    blend_upper_bound = 8
 
     base_model = load_base_model()
     if base_model is None:
@@ -366,11 +483,6 @@ def predict_run_time(
                 detail=f"Model schema mismatch (expected {expected} features, got {n}). Retrain model.",
             )
 
-    # base prediction
-    base_pred_secs = float(predict_base_seconds(base_model, payload.distance, current_user))
-
-    # personalised prediction if model exists
-    personal_pred_secs = None
     shap_data = None
     if user_model is not None:
         # get outputs from personal model func
@@ -379,33 +491,46 @@ def predict_run_time(
         weather_temp, weather_precip_mm = _prediction_weather_values(payload, user_runs)
         # store model features
         features = _feature_vector(payload.distance, weather_temp, weather_precip_mm)
-        # get prediction
-        predicted_minutes = float(personal_model.predict([features])[0])
-        # convert min prediction to secs
-        personal_pred_secs = predicted_minutes * 60
         # store shap data from prediction
         shap_data = _personal_shap(personal_model, features, feature_names, background_data)
 
-    # combine predictions, weighting each one based on how many runs the user has recorded
-    if personal_pred_secs is None or run_count < blend_lower_bound:
 
-        # use base model if runs are less than min required
-        predicted_seconds = base_pred_secs
+
     else:
-        # min-max func calculates weight [0-1] to be applied to predictions
-        weight = (run_count - blend_lower_bound) / float(blend_upper_bound - blend_lower_bound)
-        # clamps
-        if weight < 0:
-            weight = 0.0
-        if weight > 1:
-            weight = 1.0
+        weather_temp = 0.0
+        weather_precip_mm = 0.0
 
-        # blend models through weight
-        predicted_seconds = (weight * personal_pred_secs) + ((1 - weight) * base_pred_secs)
+    # apply blended model predictions
+    predicted_seconds = _blend_prediction_seconds(
+        payload.distance,
+        current_user,
+        base_model,
+        user_model,
+        run_count,
+        weather_temp,
+        weather_precip_mm,
+    )
+
+    # apply recent perfomance impact
+    predicted_seconds, recent_adjustment_seconds = _recent_performance_adjustment(
+        user_runs,
+        predicted_seconds,
+        current_user,
+        base_model,
+        user_model,
+        run_count,
+    )
 
     # ensure no negative preds
     predicted_seconds = int(round(max(predicted_seconds, 0)))
-    return PredictResponse(predicted_time_seconds=predicted_seconds, shap=shap_data)
+
+    # return pred time, SHAP exp, recent performance influence in seconds + percentage
+    return PredictResponse(
+        predicted_time_seconds=predicted_seconds,
+        shap=shap_data,
+        recent_performance_adjustment_seconds=recent_adjustment_seconds
+    )
+
 
 
 # ========== root and CORS ==========

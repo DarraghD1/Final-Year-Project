@@ -88,8 +88,8 @@ export default function RunsScreen() {
   const [predicting, setPredicting] = useState(false);
   const [predictedSeconds, setPredictedSeconds] = useState<number | null>(null);
   const [predictError, setPredictError] = useState<string | null>(null);
-  const [shapBaseSeconds, setShapBaseSeconds] = useState<number | null>(null);
   const [shapValues, setShapValues] = useState<Record<string, number> | null>(null);
+  const [recentPerformanceAdjustmentSeconds, setRecentPerformanceAdjustmentSeconds] = useState<number | null>(null);
 
   // load runs from backend
   const loadRuns = useCallback(async () => {
@@ -208,8 +208,8 @@ export default function RunsScreen() {
       return;
     }
     setPredictError(null);
-    setShapBaseSeconds(null);
     setShapValues(null);
+    setRecentPerformanceAdjustmentSeconds(null);
     setPredicting(true);
 
     try {
@@ -235,8 +235,10 @@ export default function RunsScreen() {
 
       // save predicted time
       setPredictedSeconds(result.predicted_time_seconds);
-      setShapBaseSeconds(result.shap?.base_seconds ?? null);
       setShapValues(result.shap?.values_seconds ?? null);
+
+      // set form influence adjustmebt
+      setRecentPerformanceAdjustmentSeconds(result.recent_performance_adjustment_seconds ?? null);
     } 
     // error handling
     catch (err) {
@@ -277,6 +279,14 @@ export default function RunsScreen() {
               <Text style={styles.predictionValue}>
                 {predictedSeconds == null ? "-" : formatTime(predictedSeconds)}
               </Text>
+
+              {/* display recent form influence  */}
+              {recentPerformanceAdjustmentSeconds != null ? (
+                <Text style={styles.predictionMeta}>
+                  Recent form: {formatSignedSeconds(recentPerformanceAdjustmentSeconds)}
+                </Text>
+              ) : null}
+
               {/* display SHAP value if available */}
               {shapValues ? (
                 <View style={{ marginTop: 8 }}>
@@ -397,6 +407,7 @@ const styles = StyleSheet.create({
   },
   predictionLabel: { color: "#3b4a6b", fontWeight: "600" },
   predictionValue: { color: "#111", fontSize: 18, marginTop: 6 },
+  predictionMeta: { color: "#000000ff", marginTop: 8 },
   errorText: { color: "#b3261e", marginTop: 6 },
   pbGrid: {
     gap: 8,

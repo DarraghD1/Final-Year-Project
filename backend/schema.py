@@ -41,9 +41,12 @@ class ShapExplanation(BaseModel):
     base_seconds: float
     values_seconds: dict[str, float]
 
+# return prediction time, SHAP explanation and recent form adjustment
 class PredictResponse(BaseModel):
     predicted_time_seconds: int
     shap: Optional[ShapExplanation] = None
+    recent_performance_adjustment_seconds: Optional[int] = None
+    recent_form_percent: Optional[float] = None
 
 # req data frim user profile attributes
 class UserProfileRead(BaseModel):
