@@ -313,6 +313,37 @@ function formatSecondsToPace(totalSeconds: number) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+// template for pace strategies based on distance
+function getPacingTemplate(distanceKm: number) {
+
+  // add/subtract time for different dist ranges
+  if (distanceKm <= 5) {
+    return [3, 1, 0, -1, -3];
+  }
+  if (distanceKm <= 10) {
+    return [4, 3, 2, 1, 0, 0, -1, -2, -3, -4];
+  }
+  if (distanceKm <= 21.1) {
+    return [6, 5, 4, 3, 2, 1, 0, 0, 0, -1, -2, -3, -4, -5, -6];
+  }
+  return [8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, -1, -2, -3, -4, -5, -6, -7, -8];
+}
+
+// pick value from above template based on number of splits
+function getOffsetForSplit(template: number[], splitIndex: number, splitCount: number) {
+
+  if (splitCount <= 1) return template[0] ?? 0;
+
+  // find where split is relative to full dist
+  const splitProgress = splitIndex / (splitCount - 1);
+
+  // get position in template via index
+  const templateIndex = Math.round(splitProgress) * (template.length - 1);
+
+  // return number
+  return template[templateIndex] ?? 0;
+}
+
 // pacing strategy function reads in user target distance, time and desired pacing type
 function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: string) {
 
@@ -325,25 +356,34 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
 
   // calculate average pace required
   const avgPace = totalSeconds / distanceKm;
+  // number of km = num splits
+  const splitCount = Math.max(1, Math.round(distanceKm));
+  const template = getPacingTemplate(distanceKm);
+  const offsets: number[] = [];
 
-  for (let i = 1; i <= distanceKm; i++) {
+  for (let i = 0; i < splitCount; i++) {
+    let offset = 0;
 
-    // even strat maintains constant pace oveer the race
-    let pace = avgPace;
-
-    // positive pacing starts fast and finsih slower
-    if (pacingType === "positive") {
-      pace = avgPace - 10 + (i - 1) * 5;    // basic pacing equation for now - just adds 5s on to avg pace each km
-    }
-
-    // negative pacing starts slower than you finish
     if (pacingType === "negative") {
-      pace = avgPace + 10 - (i - 1) * 5;    // inverse of positive pacing
+      offset = getOffsetForSplit(template, i, splitCount);
     }
+
+    // reverse pace strat if positive
+    if (pacingType === "positive") {
+      offset = -getOffsetForSplit(template, i, splitCount);
+    }
+    offsets.push(offset);
+  }
+
+  // keep pacing plan anchored to target average pace
+  const offsetAverage = offsets.reduce((sum, offset) => sum + offset, 0) / offsets.length;
+
+  for (let i = 0; i < splitCount; i++) {
+    const pace = avgPace + offsets[i] - offsetAverage;
 
     // add pace segments to list for different strategies
     list.push({
-      label: `Km ${i}`,
+      label: `Km ${i + 1}`,
       pace: `${formatSecondsToPace(pace)} /km`,
       split: formatSecondsToPace(pace),
     });

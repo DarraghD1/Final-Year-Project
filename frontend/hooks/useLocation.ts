@@ -69,7 +69,7 @@ export function useLocation() {
     const max_accuracy_meters = 15;
 
     // minimum distance to move before add distance 
-    const min_dist_register = 8;
+    const min_dist_register = 4;
 
     // watch users location
     watchRef.current = await Location.watchPositionAsync(
