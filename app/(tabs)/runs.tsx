@@ -292,6 +292,8 @@ export default function RunsScreen() {
                 <View style={{ marginTop: 8 }}>
                   <Text>Temp impact: {formatSignedSeconds(shapValues.weather_temp)}</Text>
                   <Text>Precip impact: {formatSignedSeconds(shapValues.weather_precip_mm)}</Text>
+                  <Text>Humidity impact: {formatSignedSeconds(shapValues.weather_humidity)}</Text>
+                  <Text>Wind impact: {formatSignedSeconds(shapValues.weather_wind_kph)}</Text>
                 </View>
               ) : null}
               {predictError ? <Text style={styles.errorText}>{predictError}</Text> : null}
@@ -344,6 +346,8 @@ export default function RunsScreen() {
             <Text style={{ color: "#444" }}>Elevation: {toElevation(item.elevation_gain)}</Text>
             <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
             <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
+            <Text style={{ color: "#444" }}>Humidity: {item.weather_humidity}%</Text>
+            <Text style={{ color: "#444" }}>Wind: {item.weather_wind_kph} kph</Text>
             <Pressable
               style={[
                 styles.deleteButton,

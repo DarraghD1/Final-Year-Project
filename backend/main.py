@@ -275,19 +275,30 @@ def _personal_model_parts(user_model):
 
 # func to fetch live weather data for prediction
 def _prediction_weather_values(payload: PredictRequest, runs: List[UserRun]):
+
+    # return 0's if lat or long not available
+    if payload.lat is None or payload.lon is None:
+        return 0.0, 0.0, 0.0, 0.0
     try:
         weather = fetch_current_weather(payload.lat, payload.lon)
-        temp_val, precip_val, _, _ = extract_weather_summary(weather)
-        return temp_val or 0.0, precip_val or 0.0
+        temp_val, precip_val, humidity_val, wind_val = extract_weather_summary(weather)
+        return temp_val or 0.0, precip_val or 0.0, humidity_val or 0.0, wind_val or 0.0
+    
     except Exception as exc:
         print(f"Prediction weather lookup failed: {exc}")
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
 
 
 # build feature vector for personal model
-def _feature_vector(distance_m: int, weather_temp: float, weather_precip_mm: float):
+def _feature_vector(
+    distance_m: int,
+    weather_temp: float,
+    weather_precip_mm: float,
+    weather_humidity: float,
+    weather_wind_kph: float,
+):
     distance_km = distance_m / 1000
-    return [distance_km, weather_temp, weather_precip_mm]
+    return [distance_km, weather_temp, weather_precip_mm, weather_humidity, weather_wind_kph]
 
 
 # convert mins/km to secs/km
@@ -312,6 +323,8 @@ def _blend_prediction_seconds(
     run_count: int,
     weather_temp: float = 0.0,
     weather_precip_mm: float = 0.0,
+    weather_humidity: float = 0.0,
+    weather_wind_kph: float = 0.0,
 ):
 
     # base prediction - return this if no user model exits or is below lower bound
@@ -321,7 +334,7 @@ def _blend_prediction_seconds(
 
     # get personal model, features and personal pred from helpers
     personal_model, _, _ = _personal_model_parts(user_model)
-    features = _feature_vector(distance_m, weather_temp, weather_precip_mm)
+    features = _feature_vector(distance_m, weather_temp, weather_precip_mm, weather_humidity, weather_wind_kph)
     personal_pred_secs = float(personal_model.predict([features])[0]) * 60.0
 
     # apply min-max function to get [0-1] weighting to apply to each model
@@ -372,6 +385,8 @@ def _recent_performance_adjustment(
             run_count,
             float(run.weather_temp or 0.0),
             float(run.weather_precip_mm or 0.0),
+            float(run.weather_humidity or 0.0),
+            float(run.weather_wind_kph or 0.0),
         )
         if expected_seconds <= 0:
             continue
@@ -474,7 +489,7 @@ def predict_run_time(
             print(f"User model retrain failed: {exc}")
 
         # ensure correct number of features 
-        expected = 3
+        expected = 5
         personal_model, _, _ = _personal_model_parts(user_model)
         n = getattr(personal_model, "n_features_in_", expected) if personal_model is not None else expected
         if user_model is not None and n != expected:
@@ -488,9 +503,15 @@ def predict_run_time(
         # get outputs from personal model func
         personal_model, feature_names, background_data = _personal_model_parts(user_model)
         # get live weather data
-        weather_temp, weather_precip_mm = _prediction_weather_values(payload, user_runs)
+        weather_temp, weather_precip_mm, weather_humidity, weather_wind_kph = _prediction_weather_values(payload, user_runs)
         # store model features
-        features = _feature_vector(payload.distance, weather_temp, weather_precip_mm)
+        features = _feature_vector(
+            payload.distance,
+            weather_temp,
+            weather_precip_mm,
+            weather_humidity,
+            weather_wind_kph,
+        )
         # store shap data from prediction
         shap_data = _personal_shap(personal_model, features, feature_names, background_data)
 
@@ -499,6 +520,8 @@ def predict_run_time(
     else:
         weather_temp = 0.0
         weather_precip_mm = 0.0
+        weather_humidity = 0.0
+        weather_wind_kph = 0.0
 
     # apply blended model predictions
     predicted_seconds = _blend_prediction_seconds(
@@ -509,6 +532,8 @@ def predict_run_time(
         run_count,
         weather_temp,
         weather_precip_mm,
+        weather_humidity,
+        weather_wind_kph,
     )
 
     # apply recent perfomance impact

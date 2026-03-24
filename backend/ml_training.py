@@ -11,7 +11,7 @@ from models import UserRun, User
 # save models under ml_models (wont scale well but fine for nwo)
 MODEL_DIR = Path(__file__).resolve().parent / "ml_models"
 BASE_MODEL = "base_ridge.joblib"                            # initial start model
-PERSONAL_FEATURE_NAMES = ["distance_km", "weather_temp", "weather_precip_mm"]
+PERSONAL_FEATURE_NAMES = ["distance_km", "weather_temp", "weather_precip_mm", "weather_humidity", "weather_wind_kph"]
 BASE_FEATURE_ORDER = ["log_distance", "age", "ageSqrd", "sex"]
 
 # function to convert sex to 0/1
@@ -73,7 +73,9 @@ def _personal_features_for_run(run: UserRun) -> Optional[Tuple[list, float]]:
     features = [
         _to_km(run.distance),
         _weather_value(run.weather_temp),
-        _weather_value(run.weather_precip_mm)
+        _weather_value(run.weather_precip_mm),
+        _weather_value(run.weather_humidity),
+        _weather_value(run.weather_wind_kph),
     ]
     target = _to_minutes(run.time)
     return features, target
