@@ -359,12 +359,12 @@ def _recent_performance_adjustment(
 ):
     # check for bad inputs
     if predicted_seconds <= 0:
-        return predicted_seconds, None, None
+        return predicted_seconds, None
 
     # only keep usable runs - requires at least 2
     valid_runs = [run for run in user_runs if _seconds_per_km(run) is not None]
     if len(valid_runs) < 2:
-        return predicted_seconds, None, None
+        return predicted_seconds, None
 
     # use the most recent runs only, since they are the best signal for current form
     valid_runs.sort(key=lambda run: run.completed_at, reverse=True)
@@ -402,7 +402,7 @@ def _recent_performance_adjustment(
         total_weight += weight
 
     if total_weight == 0:
-        return predicted_seconds, None, None
+        return predicted_seconds, None
 
     # users recent form score compared to expected performance
     average_change = total_change / total_weight
