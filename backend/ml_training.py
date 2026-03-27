@@ -168,7 +168,7 @@ def train_base_model(session: Session) -> Optional[Path]:
     if len(X) < 2:
         return None
 
-    model = Ridge(alpha=1.0)
+    model = Ridge(alpha=0.1)
     model.fit(X, y)
 
     artifact = {
