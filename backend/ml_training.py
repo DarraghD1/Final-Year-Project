@@ -14,7 +14,7 @@ BASE_MODEL = "base_ridge.joblib"                            # initial start mode
 PERSONAL_FEATURE_NAMES = ["distance_km", "weather_temp", "weather_precip_mm", "weather_humidity", "weather_wind_kph"]
 BASE_FEATURE_ORDER = ["log_distance", "age", "ageSqrd", "sex"]
 
-# function to convert sex to 0/1
+# function to encode sex to 0/1
 def _sex_to_code(sex: Optional[str]) -> float:
     if not sex:
         return 0.0
@@ -85,12 +85,12 @@ def _base_model_path() -> Path:
     return MODEL_DIR / BASE_MODEL
 
 # personalised model path
-def _model_path_for_user(user_id: int) -> Path:
+def _user_model_path(user_id: int) -> Path:
     return MODEL_DIR / f"user_{user_id}_linreg.joblib"
 
 
 def _remove_user_model(user_id: int) -> None:
-    model_path = _model_path_for_user(user_id)
+    model_path = _user_model_path(user_id)
     if model_path.exists():
         model_path.unlink()
 
@@ -137,12 +137,12 @@ def train_user_model(session: Session, user_id: int) -> Optional[Path]:
 
     # save model as joblib file under users id
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    model_path = _model_path_for_user(user_id)
+    model_path = _user_model_path(user_id)
     joblib.dump(artifact, model_path)
     return model_path
 
 '''
-    train base model on all runs with users data (from profile) 
+    train base model on all runs with users attribute data (from profile) 
     this is for cold-start predictions for new users (runs < 2)
 '''
 def train_base_model(session: Session) -> Optional[Path]:
