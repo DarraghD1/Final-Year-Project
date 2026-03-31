@@ -579,7 +579,13 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
           <View style={styles.buttonSpacing}>
             <Button title="Continue" onPress={() => setShowRecorder(true)} />
           </View>
-          <Button title="Exit" onPress={() => { setShowRecorder(false), setShowPacing(false); }}/>
+          <Button
+            title="Exit"
+            onPress={() => {
+              setShowRecorder(false);
+              setShowPacing(false);
+            }}
+          />
         </View>
       </ScrollView>
     );
@@ -656,8 +662,10 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
       
       {status === 'paused' && (
         <>
+        <View style={{ flexDirection: 'row', gap: 50, marginLeft: 55 }}>
           <Button title="Resume Run" onPress={handleUnpauseRun} />
           <Button title="End Run" onPress={handleStopRun} />      
+        </View>
         </>
       )}
 
@@ -855,7 +863,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   buttonsRow: {
-    marginTop: 40,
+    marginTop: 35,
   },
   warning: {
     color: "#f97373",
