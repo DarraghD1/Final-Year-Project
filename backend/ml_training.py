@@ -10,9 +10,9 @@ from models import UserRun, User
 
 # save models under ml_models (wont scale well but fine for nwo)
 MODEL_DIR = Path(__file__).resolve().parent / "ml_models"
-BASE_MODEL = "base_ridge.joblib"                            # initial start model
+BASE_MODEL = "base_model.joblib"                            # initial start model
 PERSONAL_FEATURE_NAMES = ["distance_km", "weather_temp", "weather_precip_mm", "weather_humidity", "weather_wind_kph"]
-BASE_FEATURE_ORDER = ["log_distance", "age", "ageSqrd", "sex"]
+BASE_FEATURE_ORDER = ["log_distance", "age", "sex"]
 
 # function to encode sex to 0/1
 def _sex_to_code(sex: Optional[str]) -> float:
@@ -53,7 +53,7 @@ def _features_for_run(run: UserRun, user: Optional[User]) -> Optional[Tuple[list
         sex_val = _sex_to_code(user.sex)
 
     # match features and target to base_model
-    features = [log(float(run.distance)), age_val, age_val ** 2, sex_val]
+    features = [log(float(run.distance)), age_val, sex_val]
     target = _to_log_seconds(run.time)
     return features, target
 
@@ -173,7 +173,7 @@ def train_base_model(session: Session) -> Optional[Path]:
 
     artifact = {
         "model": model,
-        "kind": "log_ridge",
+        "kind": "log_time",
         "feature_order": BASE_FEATURE_ORDER,
     }
 

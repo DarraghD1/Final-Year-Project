@@ -9,10 +9,10 @@ import joblib
 from models import User
 
 # path to base model
-BASE_MODEL_PATH = Path(__file__).resolve().parent / "ml_models" / "base_ridge.joblib"
+BASE_MODEL_PATH = Path(__file__).resolve().parent / "ml_models" / "base_model.joblib"
 
 # ensure features are ordered correctly
-DEFAULT_FEATURE_ORDER = ["log_distance", "age", "ageSqrd", "sex"]
+DEFAULT_FEATURE_ORDER = ["log_distance", "age", "sex"]
 
 
 def load_base_model() -> Optional[Any]:
@@ -38,7 +38,6 @@ def _features(distance_m: int, user: User) -> Dict[str, float]:
     return {
         "log_distance": log(float(distance_m)),
         "age": age_val,
-        "ageSqrd": age_val ** 2,
         "sex": sex_val,
     }
 
@@ -51,11 +50,11 @@ def predict_base_seconds(base_artifact: Any, distance_m: int, user: User) -> flo
         model = base_artifact.get("model")
 
         # shows if the model predicts log(seconds) or regular
-        kind = base_artifact.get("kind", "log_ridge")
+        kind = base_artifact.get("kind", "log_time")
         feature_order = base_artifact.get("feature_order", DEFAULT_FEATURE_ORDER)
     else:
         model = base_artifact
-        kind = "log_ridge"
+        kind = "log_time"
         feature_order = DEFAULT_FEATURE_ORDER
 
     if model is None:
@@ -69,6 +68,6 @@ def predict_base_seconds(base_artifact: Any, distance_m: int, user: User) -> flo
     pred = float(model.predict([vector])[0])
 
     # if prediction uses log(time) convert back to regular units by getting the exp
-    if kind == "log_ridge":
+    if kind == "log_time":
         return float(exp(pred))
     return pred
