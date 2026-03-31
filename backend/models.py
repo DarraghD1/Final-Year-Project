@@ -1,6 +1,7 @@
 from typing import Optional
 from sqlmodel import SQLModel, Field
 from pydantic import EmailStr
+from datetime import UTC, datetime
 
 # create user and runs tables
 class User(SQLModel, table=True):
@@ -17,6 +18,7 @@ class UserRun(SQLModel, table=True):
     user_id: int
     distance: int  # meters
     time: int      # seconds
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     elevation_gain: Optional[float] = None  # meters
     weather_temp: Optional[float] = None        # celsius
     weather_precip_mm: Optional[float] = None   # mm

@@ -4,7 +4,7 @@ import { API_BASE_URL } from "./auth";
 
 export type PredictionResponse = {
   predicted_time_seconds: number;
-  
+  recent_performance_adjustment_seconds?: number | null;
   shap?: {base_seconds: number; 
     values_seconds: Record<string, number>;
   } | null;

@@ -3,13 +3,14 @@ import * as Location from "expo-location";
 import React, { useState } from "react";
 import { Alert, Button, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
+import { predictRunTime } from "../../api/ml";
 import { useAuth } from "../../context/AuthContext";
 import { RunStats } from "../../frontend/components/runStats";
 import { useLocation } from "../../frontend/hooks/useLocation";
 import { useStopwatch } from "../../frontend/hooks/useStopwatch";
 
 
-/* Screen for entering goal & recording run activity */
+/* Screen for entering goal, Race Strategy & recording run activity */
 export default function RunRecorderScreen() {
 
   const { token } = useAuth();
@@ -19,6 +20,11 @@ export default function RunRecorderScreen() {
   const [goalTime, setGoalTime] = useState("");
   const [savedGoal, setSavedGoal] = useState<{ distance: string; time: string } | null>(null);
   const [selectedPacing, setSelectedPacing] = useState("positive");
+  const [predictingGoal, setPredictingGoal] = useState(false);
+  const [predictedSeconds, setPredictedSeconds] = useState<number | null>(null);
+  const [predictError, setPredictionError] = useState<string | null>(null);
+  const [shapValues, setShapValues] = useState<Record<string, number> | null>(null);
+  const [recentPerformanceAdjustmentSeconds, setRecentPerformanceAdjustmentSeconds] = useState<number | null>(null);
   
   // public access token for mapbox
   MapboxGL.setAccessToken('pk.eyJ1IjoiZGFycmFnaGRvbm5lbGx5IiwiYSI6ImNtazRmY3dybDAwYzYzZnNoaW9tOWpmZXIifQ.0uXzsLO0Lud1u2S93tCbCQ');
@@ -81,8 +87,23 @@ export default function RunRecorderScreen() {
     start();
   };
 
+  // formatting for time separates into hh:mm:ss
+  const formatGoalTimeInput = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 6);
+
+    if (digits.length <= 2) {
+      return digits;
+    }
+
+    if (digits.length <= 4) {
+      return `${digits.slice(0, digits.length - 2)}:${digits.slice(-2)}`;
+    }
+
+    return `${digits.slice(0, digits.length - 4)}:${digits.slice(-4, -2)}:${digits.slice(-2)}`;
+  };
+
   // allow user to enter goal
-  const handleEnterGoal = () => {
+  const handleEnterGoal = async () => {
     const trimmedDistance = goalDistance.trim();
     const trimmedTime = goalTime.trim();
 
@@ -91,14 +112,61 @@ export default function RunRecorderScreen() {
       return;
     }
 
+    // user input distance 
+    const distanceKm = Number(trimmedDistance);
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0 || distanceKm > 200) {
+      Alert.alert("Invalid distance", "Enter a distance between 0.1 km and 200 km.");
+      return;
+    }
+
+    setPredictingGoal(true);
+    setPredictionError(null);
+    setPredictedSeconds(null);
+    setShapValues(null);
+    setRecentPerformanceAdjustmentSeconds(null);
+
+    if (token) {
+      try {
+        let lat: number | null = null;
+        let lon: number | null = null;
+
+        try {
+          const permission = await Location.requestForegroundPermissionsAsync();
+          if (permission.status === "granted") {
+            const location = await Location.getCurrentPositionAsync({});
+            lat = location.coords.latitude;
+            lon = location.coords.longitude;
+          }
+        } catch (locationError) {
+          console.warn("Unable to get location for goal prediction", locationError);
+        }
+
+        const result = await predictRunTime(distanceKm * 1000, lat, lon, token);
+        setPredictedSeconds(result.predicted_time_seconds);
+        setShapValues(result.shap?.values_seconds ?? null);
+        setRecentPerformanceAdjustmentSeconds(result.recent_performance_adjustment_seconds ?? null);
+      } catch (err) {
+        console.warn("Goal prediction failed", err);
+        setPredictionError("Prediction failed.");
+      }
+    } else {
+      setPredictionError("Sign in to get a prediction.");
+    }
+
     // apply goal
     setSavedGoal({ distance: trimmedDistance, time: trimmedTime });
     setShowPacing(true);
+    setPredictingGoal(false);
   };
 
   const handleJustRun = () => {
     setSavedGoal(null);
     setShowPacing(false);
+    setPredictingGoal(false);
+    setPredictedSeconds(null);
+    setPredictionError(null);
+    setShapValues(null);
+    setRecentPerformanceAdjustmentSeconds(null);
     setShowRecorder(true);
   };
 
@@ -233,6 +301,25 @@ try {
       ? formatSecondsToPace(targetTimeSeconds / targetDistanceKm)
       : null;
 
+  const formatTime = (secs?: number | null) => {
+    if (secs == null) return "-";
+    const totalSeconds = Math.round(Number(secs));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  };
+
+  const formatSignedSeconds = (secs?: number | null) => {
+    if (secs == null) return "-";
+    const sign = secs >= 0 ? "+" : "-";
+    return `${sign}${Math.round(Math.abs(secs))} sec`;
+  };
+
 
   // *****************************    Goal setting screen    *****************************
   if (!showPacing && !showRecorder) {
@@ -254,7 +341,7 @@ try {
 
           <TextInput
             value={goalTime}
-            onChangeText={setGoalTime}
+            onChangeText={(value) => setGoalTime(formatGoalTimeInput(value))}
             placeholder="Time goal (mm:ss)"
             style={styles.input}
             keyboardType="numeric"
@@ -262,7 +349,7 @@ try {
 
           <View style={styles.actionButtons}>
             <View style={styles.buttonSpacing}>
-              <Button title="Enter" onPress={handleEnterGoal} />
+              <Button title={predictingGoal ? "Preparing..." : "Enter"} onPress={handleEnterGoal} disabled={predictingGoal} />
             </View>
             <Button title="Just Run" onPress={handleJustRun} />
           </View>
@@ -313,6 +400,37 @@ function formatSecondsToPace(totalSeconds: number) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+// template for pace strategies based on distance
+function getPacingTemplate(distanceKm: number) {
+
+  // add/subtract time for different dist ranges
+  if (distanceKm <= 5) {
+    return [3, 1, 0, -1, -3];
+  }
+  if (distanceKm <= 10) {
+    return [4, 3, 2, 1, 0, 0, -1, -2, -3, -4];
+  }
+  if (distanceKm <= 21.1) {
+    return [6, 5, 4, 3, 2, 1, 0, 0, 0, -1, -2, -3, -4, -5, -6];
+  }
+  return [8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, -1, -2, -3, -4, -5, -6, -7, -8];
+}
+
+// pick value from above template based on number of splits
+function getOffsetForSplit(template: number[], splitIndex: number, splitCount: number) {
+
+  if (splitCount <= 1) return template[0] ?? 0;
+
+  // find where split is relative to full dist
+  const splitProgress = splitIndex / (splitCount - 1);
+
+  // get position in template via index
+  const templateIndex = Math.round(splitProgress) * (template.length - 1);
+
+  // return number
+  return template[templateIndex] ?? 0;
+}
+
 // pacing strategy function reads in user target distance, time and desired pacing type
 function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: string) {
 
@@ -325,25 +443,34 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
 
   // calculate average pace required
   const avgPace = totalSeconds / distanceKm;
+  // number of km = num splits
+  const splitCount = Math.max(1, Math.round(distanceKm));
+  const template = getPacingTemplate(distanceKm);
+  const offsets: number[] = [];
 
-  for (let i = 1; i <= distanceKm; i++) {
+  for (let i = 0; i < splitCount; i++) {
+    let offset = 0;
 
-    // even strat maintains constant pace oveer the race
-    let pace = avgPace;
-
-    // positive pacing starts fast and finsih slower
-    if (pacingType === "positive") {
-      pace = avgPace - 10 + (i - 1) * 5;    // basic pacing equation for now - just adds 5s on to avg pace each km
-    }
-
-    // negative pacing starts slower than you finish
     if (pacingType === "negative") {
-      pace = avgPace + 10 - (i - 1) * 5;    // inverse of positive pacing
+      offset = getOffsetForSplit(template, i, splitCount);
     }
+
+    // reverse pace strat if positive
+    if (pacingType === "positive") {
+      offset = -getOffsetForSplit(template, i, splitCount);
+    }
+    offsets.push(offset);
+  }
+
+  // keep pacing plan anchored to target average pace
+  const offsetAverage = offsets.reduce((sum, offset) => sum + offset, 0) / offsets.length;
+
+  for (let i = 0; i < splitCount; i++) {
+    const pace = avgPace + offsets[i] - offsetAverage;
 
     // add pace segments to list for different strategies
     list.push({
-      label: `Km ${i}`,
+      label: `Km ${i + 1}`,
       pace: `${formatSecondsToPace(pace)} /km`,
       split: formatSecondsToPace(pace),
     });
@@ -427,11 +554,38 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
           ))}
         </View>
 
+        <View style={styles.predictionCard}>
+          <Text style={styles.pacingTitle}>Prediction</Text>
+          <Text style={styles.pacingMeta}>
+            Predicted time for {savedGoal?.distance ?? goalDistance} km: {predictingGoal ? "Calculating..." : formatTime(predictedSeconds)}
+          </Text>
+          {recentPerformanceAdjustmentSeconds != null ? (
+            <Text style={styles.pacingMeta}>
+              Recent form: {formatSignedSeconds(recentPerformanceAdjustmentSeconds)}
+            </Text>
+          ) : null}
+          {shapValues ? (
+            <View style={styles.predictionFactors}>
+              <Text style={styles.pacingMeta}>Temp impact: {formatSignedSeconds(shapValues.weather_temp)}</Text>
+              <Text style={styles.pacingMeta}>Precip impact: {formatSignedSeconds(shapValues.weather_precip_mm)}</Text>
+              <Text style={styles.pacingMeta}>Humidity impact: {formatSignedSeconds(shapValues.weather_humidity)}</Text>
+              <Text style={styles.pacingMeta}>Wind impact: {formatSignedSeconds(shapValues.weather_wind_kph)}</Text>
+            </View>
+          ) : null}
+          {predictError ? <Text style={styles.predictionError}>{predictError}</Text> : null}
+        </View>
+
         <View style={styles.pacingButtons}>
           <View style={styles.buttonSpacing}>
             <Button title="Continue" onPress={() => setShowRecorder(true)} />
           </View>
-          <Button title="Exit" onPress={() => { setShowRecorder(false), setShowPacing(false); }}/>
+          <Button
+            title="Exit"
+            onPress={() => {
+              setShowRecorder(false);
+              setShowPacing(false);
+            }}
+          />
         </View>
       </ScrollView>
     );
@@ -508,8 +662,10 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
       
       {status === 'paused' && (
         <>
+        <View style={{ flexDirection: 'row', gap: 50, marginLeft: 55 }}>
           <Button title="Resume Run" onPress={handleUnpauseRun} />
           <Button title="End Run" onPress={handleStopRun} />      
+        </View>
         </>
       )}
 
@@ -654,6 +810,21 @@ const styles = StyleSheet.create({
   pacingButtons: {
     paddingBottom: 24,
   },
+  predictionCard: {
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: "#eff6ff",
+    marginBottom: 20,
+  },
+  predictionFactors: {
+    marginTop: 8,
+  },
+  predictionError: {
+    color: "#b3261e",
+    marginTop: 6,
+  },
   goalCard: {
     borderWidth: 1,
     borderColor: "#dbeafe",
@@ -692,7 +863,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   buttonsRow: {
-    marginTop: 40,
+    marginTop: 35,
   },
   warning: {
     color: "#f97373",
