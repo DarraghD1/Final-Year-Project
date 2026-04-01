@@ -13,7 +13,7 @@ function RootLayoutContent() {
       if (token) {
         router.replace({ pathname: "/(tabs)/runs" } as any);
       } else {
-        router.replace({ pathname: "/(auth)" } as any);
+        router.replace({ pathname: "/(auth)/signup" } as any);
       }
     }
   }, [token, loading, router]);

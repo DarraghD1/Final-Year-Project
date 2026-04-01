@@ -55,24 +55,22 @@ export const RunStats: React.FC<Props> = ({
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>Time</Text>
-          <Text style={styles.statValue}>{formatTime(timeSeconds)}</Text>
-        </View>
-
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>Distance</Text>
-          <Text style={styles.statValue}>{distanceKm.toFixed(2)} km</Text>
-        </View>
-
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>Elevation</Text>
-          <Text style={styles.statValue}>{elevationLabel}</Text>
-        </View>
+      <View style={styles.stat}>
+        <Text style={styles.statLabel}>Time</Text>
+        <Text style={styles.statValue}>{formatTime(timeSeconds)}</Text>
       </View>
 
-      <View style={styles.paceStat}>
+      <View style={styles.stat}>
+        <Text style={styles.statLabel}>Distance</Text>
+        <Text style={styles.statValue}>{distanceKm.toFixed(2)} km</Text>
+      </View>
+
+      <View style={styles.stat}>
+        <Text style={styles.statLabel}>Elevation</Text>
+        <Text style={styles.statValue}>{elevationLabel}</Text>
+      </View>
+
+      <View style={styles.stat}>
         <Text style={styles.statLabel}>Live Pace</Text>
         <Text style={styles.statValue}>{paceLabel}</Text>
       </View>
@@ -82,36 +80,40 @@ export const RunStats: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 32,
-  },
-  statsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
+    marginBottom: 10,
+    marginTop: 6,
   },
   stat: {
-    flex: 1,
-    marginHorizontal: 4,
-    paddingVertical: 16,
-    borderRadius: 16,
+    width: "48%",
+    marginBottom: 10,
+    borderRadius: 14,
+    minHeight: 110,
+    paddingTop: 16,
+    paddingRight: 12,
+    paddingLeft: 12,
+    paddingBottom: 12,
     backgroundColor: "#1f2937",
     alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
   },
   statLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginBottom: 4,
+    position: "absolute",
+    top: 12,
+    left: 15,
+    fontSize: 11,
+    color: "#ffffffff",
+    fontWeight: "500",
+    textAlign: "left",
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 28,
+    top: 8,
     fontWeight: "600",
     color: "#f9fafb",
-  },
-  paceStat: {
-    marginTop: 8,
-    marginHorizontal: 125,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#1f2937",
-    alignItems: "center",
+    textAlign: "center",
   },
 });

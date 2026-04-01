@@ -69,17 +69,18 @@ export function useLocation() {
     const max_accuracy_meters = 15;
 
     // minimum distance to move before add distance 
-    const min_dist_register = 4;
+    const min_dist_register = 2;
 
     // watch users location
     watchRef.current = await Location.watchPositionAsync(
       {
-        accuracy: Location.Accuracy.BestForNavigation,
+        // can use getLastKnownPositionAsync 
+        accuracy: Location.Accuracy.Highest,
 
         // update every 1.5s
         timeInterval: 1500,
-        // update after moving 5 meters
-        distanceInterval: 5,
+        // update after moving 2 meters
+        distanceInterval: 2,
       },
       (location) => {
         setLocations((prev) => {

@@ -67,7 +67,7 @@ def predict_base_seconds(base_artifact: Any, distance_m: int, user: User) -> flo
     # take prediction from array returned
     pred = float(model.predict([vector])[0])
 
-    # if prediction uses log(time) convert back to regular units by getting the exp
-    if kind == "log_time":
+    # older exported artifacts may use names like "log_ridge" but still predict log-seconds
+    if isinstance(kind, str) and kind.startswith("log"):
         return float(exp(pred))
     return pred
