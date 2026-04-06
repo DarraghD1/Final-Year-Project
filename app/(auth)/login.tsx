@@ -31,11 +31,9 @@ export default function LoginScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-       
-        <Text style={styles.title}>Login to Pacer</Text>
-        
-
         <View style={styles.card}>
+          <Text style={styles.title}>Login to Pacer</Text>
+
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
@@ -102,6 +100,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#142033",
     marginBottom: 10,
+    bottom: 1,
+    alignSelf: "center",
   },
   subtitle: {
     fontSize: 16,
@@ -118,12 +118,15 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 2,
+    height: 450,
+    bottom: 70,
   },
   label: {
     fontSize: 14,
     fontWeight: "700",
     color: "#42526a",
     marginBottom: 8,
+    top: 22,
   },
   input: {
     borderWidth: 1,
@@ -135,6 +138,7 @@ const styles = StyleSheet.create({
     color: "#142033",
     backgroundColor: "#f8fbff",
     marginBottom: 16,
+    top: 22,
   },
   error: {
     color: "#b3261e",
@@ -147,6 +151,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     backgroundColor: "#2563eb",
     marginTop: 4,
+    top: 35,
   },
   primaryButtonDisabled: {
     backgroundColor: "#8bb7ff",
@@ -161,6 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     marginTop: 6,
+    top: 35,
   },
   secondaryButtonText: {
     fontSize: 15,

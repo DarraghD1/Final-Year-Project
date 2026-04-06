@@ -140,6 +140,13 @@ export default function RunsScreen() {
   // useMemo rechecks longest run only when run array is altered 
   const longestRun = useMemo(() => getLongestRun(runs), [runs]);
 
+  // sort runs from most recent to least
+  const sortedRuns = useMemo(() => {
+    return [...runs].sort(
+      (a, b) => Date.parse(b.completed_at!) - Date.parse(a.completed_at!)
+    );
+  }, [runs]);
+
   // build PR list attaching relevant runs
   const distancePbs = useMemo(() => PRs.map((distance) => ({
 
@@ -183,7 +190,7 @@ export default function RunsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={runs}
+        data={sortedRuns}
         refreshing={refreshing}
         onRefresh={onRefresh}
         contentContainerStyle={styles.listContent}
@@ -253,7 +260,7 @@ export default function RunsScreen() {
             </Pressable>
           </View>
         )}
-        keyExtractor={(r, i) => String(r.id) + String(i)}
+        keyExtractor={(r) => String(r.id)}
         ListEmptyComponent={<Text style={{ color: "#3d3d3dff" }}>No runs yet - record your first one by pressing Record</Text>}
       />
     </View>

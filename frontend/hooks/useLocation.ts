@@ -2,13 +2,9 @@ import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 
-// use Haversine formula to calculate distance between two points on sphere given long and lat
-function getDistanceFromLatLonInMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
+// use Haversine formula to calculate distance between two points given long and lat
+function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+
   const toRad = (value: number) => (value * Math.PI) / 180;     // convert coords to radians for use
 
   const R = 6371000; // earth radius in meters
