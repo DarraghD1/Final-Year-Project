@@ -616,7 +616,7 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
   {(Platform.OS === 'ios' || Platform.OS === 'android') && (
         <View style={styles.mapWrap}>
 
-          <MapboxGL.MapView style={styles.map}>
+          <MapboxGL.MapView style={styles.map} styleURL="mapbox://styles/mapbox/outdoors-v12">
             <MapboxGL.Camera
               zoomLevel={14}
               followUserLocation={shouldFollowUser}
@@ -652,25 +652,60 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
       )}
 
       <View style={styles.buttonsRow}>
-      {status === 'idle' && (
-        <Button title="Start Run" onPress={handleStartRun} />
-      )}
+        {status === "idle" && (
+          <Pressable
+            onPress={handleStartRun}
+            style={({ pressed }) => [
+              styles.runButton,
+              styles.runButtonStart,
+              pressed ? styles.runButtonPressed : null,
+            ]}
+          >
+            <Text style={styles.runButtonText}>Start Run</Text>
+          </Pressable>
+        )}
 
-      {status === 'running' && (
-        <Button title="Pause Run" onPress={handlePauseRun} />
-      )}
-      
-      {status === 'paused' && (
-        <>
-        <View style={{ flexDirection: 'row', gap: 50, marginLeft: 55 }}>
-          <Button title="Resume Run" onPress={handleUnpauseRun} />
-          <Button title="End Run" onPress={handleStopRun} />      
-        </View>
-        </>
-      )}
+        {status === "running" && (
+          <Pressable
+            onPress={handlePauseRun}
+            style={({ pressed }) => [
+              styles.runButton,
+              styles.runButtonPause,
+              pressed ? styles.runButtonPressed : null,
+            ]}
+          >
+            <Text style={styles.runButtonText}>Pause Run</Text>
+          </Pressable>
+        )}
 
+        {status === "paused" && (
+          <View style={styles.pausedButtonsRow}>
+            <Pressable
+              onPress={handleUnpauseRun}
+              style={({ pressed }) => [
+                styles.runButton,
+                styles.runButtonHalf,
+                styles.runButtonResume,
+                pressed ? styles.runButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.runButtonText}>Resume Run</Text>
+            </Pressable>
 
-    </View>
+            <Pressable
+              onPress={handleStopRun}
+              style={({ pressed }) => [
+                styles.runButton,
+                styles.runButtonHalf,
+                styles.runButtonEnd,
+                pressed ? styles.runButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.runButtonText}>End Run</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
     </View>
   ); 
 }
@@ -679,8 +714,8 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    paddingTop: 10,
+    padding: 12,
+    paddingTop: 8,
     backgroundColor: "#fff",
   },
   setupContainer: {
@@ -830,29 +865,30 @@ const styles = StyleSheet.create({
     borderColor: "#dbeafe",
     backgroundColor: "#eff6ff",
     borderRadius: 12,
-    padding: 5,
-    marginBottom: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 12,
   },
   goalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     color: "#1d4ed8",
-    marginBottom: 8,
-  },
-  goalText: {
-    fontSize: 15,
-    color: "#1f2937",
     marginBottom: 4,
   },
+  goalText: {
+    fontSize: 14,
+    color: "#1f2937",
+    marginBottom: 2,
+  },
   mapWrap: {
-    height: 300,
-    marginVertical: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
+    height: 240,
+    marginVertical: 0,
+    borderRadius: 22,
+    overflow: "hidden",
   },
   map: {
     flex: 1,
-    height: '100%',
+    height: "100%",
   },
   currentMarker: {
     width: 20,
@@ -863,7 +899,46 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   buttonsRow: {
-    marginTop: 35,
+    marginTop: 18,
+  },
+  pausedButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  runButton: {
+    minHeight: 46,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  runButtonHalf: {
+    width: "48%",
+  },
+  runButtonStart: {
+    backgroundColor: "#2f3cf6ff",
+  },
+  runButtonPause: {
+    backgroundColor: "#ec7d06ff",
+  },
+  runButtonResume: {
+    backgroundColor: "#2da31bff",
+  },
+  runButtonEnd: {
+    backgroundColor: "#d52e2eff",
+  },
+  runButtonPressed: {
+    opacity: 0.85,
+  },
+  runButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
   },
   warning: {
     color: "#f97373",

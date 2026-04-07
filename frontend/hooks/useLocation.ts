@@ -2,13 +2,9 @@ import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 
-// use Haversine formula to calculate distance between two points on sphere given long and lat
-function getDistanceFromLatLonInMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
+// use Haversine formula to calculate distance between two points given long and lat
+function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+
   const toRad = (value: number) => (value * Math.PI) / 180;     // convert coords to radians for use
 
   const R = 6371000; // earth radius in meters
@@ -69,17 +65,18 @@ export function useLocation() {
     const max_accuracy_meters = 15;
 
     // minimum distance to move before add distance 
-    const min_dist_register = 4;
+    const min_dist_register = 2;
 
     // watch users location
     watchRef.current = await Location.watchPositionAsync(
       {
-        accuracy: Location.Accuracy.BestForNavigation,
+        // can use getLastKnownPositionAsync 
+        accuracy: Location.Accuracy.Highest,
 
         // update every 1.5s
         timeInterval: 1500,
-        // update after moving 5 meters
-        distanceInterval: 5,
+        // update after moving 2 meters
+        distanceInterval: 2,
       },
       (location) => {
         setLocations((prev) => {

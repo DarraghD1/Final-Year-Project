@@ -1,69 +1,180 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 
-/* User Sign Up page */
-
-export default function SignInScreen({ navigation }: any) {
+export default function SignUpScreen() {
+  const router = useRouter();
   const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  // use signup func from backend
-  const handleSignIn = async () => {
+  const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+
     try {
       await signUp(email, password);
-    } catch (e: any) {
-      setError(e.message || "Login failed");
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Sign up failed";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  // signup page wiht email and password inputs
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Register</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      {error && <Text style={styles.error}>{error}</Text>}
-      <Button title={loading ? "Creating account..." : "Sign Up"} onPress={handleSignIn} />
-      <Button
-        title="Already have an account? Go to Login"
-        onPress={() => router.push("/login")}
-      />
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        
+        
+
+        <View style={styles.card}>
+
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            placeholderTextColor="#94a3b8"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Create a password"
+            placeholderTextColor="#94a3b8"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <Pressable
+            style={[styles.primaryButton, loading ? styles.primaryButtonDisabled : null]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            <Text style={styles.primaryButtonText}>
+              {loading ? "Creating account..." : "Sign Up"}
+            </Text>
+          </Pressable>
+
+          <Pressable style={styles.secondaryButton} onPress={() => router.push("/login")}>
+            <Text style={styles.secondaryButtonText}>Already have an account? Log in</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 16 },
+  screen: {
+    flex: 1,
+    backgroundColor: "#f3f6fc",
+  },
+  content: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  eyebrow: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: "#5a6b85",
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#142033",
+    marginBottom: 10,
+    bottom: 1,
+    alignSelf: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#617186",
+    marginBottom: 24,
+  },
+  card: {
+    borderRadius: 24,
+    padding: 22,
+    backgroundColor: "#ffffff",
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+    height: 450,
+    bottom: 70
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#42526a",
+    marginBottom: 8,
+    top: 22
+
+  },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#d9e2ef",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#142033",
+    backgroundColor: "#f8fbff",
+    marginBottom: 16,
+    top: 22
+  },
+  error: {
+    color: "#b3261e",
     marginBottom: 12,
   },
-  error: { color: "red", marginBottom: 8 },
+  primaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    paddingVertical: 15,
+    backgroundColor: "#2563eb",
+    marginTop: 4,
+    top: 35
+  },
+  primaryButtonDisabled: {
+    backgroundColor: "#8bb7ff",
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  secondaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    marginTop: 6,
+    top: 35
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2563eb",
+  },
 });

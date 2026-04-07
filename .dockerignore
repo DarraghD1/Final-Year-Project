@@ -1,0 +1,11 @@
+node_modules
+.git
+.expo
+backend/.env
+ios
+android
+ml/Notebooks
+*.ipynb
+__pycache__
+.pytest_cache
+*.pyc

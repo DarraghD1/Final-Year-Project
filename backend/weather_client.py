@@ -6,7 +6,12 @@ load_dotenv()
 
 WEATHER_HISTORY_API_URL = "https://weather.googleapis.com/v1/history/hours:lookup"
 WEATHER_CURRENT_API_URL = "https://weather.googleapis.com/v1/currentConditions:lookup"
-GOOGLE_WEATHER_API_KEY = os.environ["GOOGLE_WEATHER_API_KEY"]
+GOOGLE_WEATHER_API_KEY = os.getenv("GOOGLE_WEATHER_API_KEY")
+
+def get_weather_api_key() -> str:
+    if not GOOGLE_WEATHER_API_KEY:
+        raise RuntimeError("GOOGLE_WEATHER_API_KEY is not configured.")
+    return GOOGLE_WEATHER_API_KEY
 
 def validate_args(lat: float, lon: float, hours: int) -> None:
     if not (-90.0 <= lat <= 90.0):
@@ -21,7 +26,7 @@ def validate_args(lat: float, lon: float, hours: int) -> None:
 def fetch_weather(lat: float, lon: float, hours: int):
     validate_args(lat, lon, hours)
     params = {
-        "key": GOOGLE_WEATHER_API_KEY,
+        "key": get_weather_api_key(),
         "location.latitude": lat,
         "location.longitude": lon,
         "hours": hours,
@@ -34,7 +39,7 @@ def fetch_weather(lat: float, lon: float, hours: int):
 def fetch_current_weather(lat: float, lon: float):
     validate_args(lat, lon, 1)
     params = {
-        "key": GOOGLE_WEATHER_API_KEY,
+        "key": get_weather_api_key(),
         "location.latitude": lat,
         "location.longitude": lon,
     }
