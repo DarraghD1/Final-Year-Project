@@ -1,11 +1,14 @@
 fastapi
 uvicorn
+httpx
 pydantic
 pydantic-extra-types
+email-validator
 sqlmodel
 passlib[bcrypt]
 bcrypt==4.0.1
 python-jose[cryptography]
+python-dotenv
 scikit-learn
 joblib
 shap
