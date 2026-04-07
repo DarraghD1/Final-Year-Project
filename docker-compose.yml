@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:////data/pacerDB.db
+    env_file:
+      - backend/.env
+    volumes:
+      - pacer_data:/data
+
+volumes:
+  pacer_data:

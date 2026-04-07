@@ -1,7 +1,8 @@
 from sqlmodel import SQLModel, create_engine, Session
 from typing import Generator
+import os
 
-DB_URL = "sqlite:////Users/darraghdonnelly/dev/Database/pacerDB.db"
+DB_URL = os.getenv("DATABASE_URL", "sqlite:///./pacerDB.db")
 engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
 
 # method to initialise db
