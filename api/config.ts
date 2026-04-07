@@ -18,4 +18,4 @@ const LAN_HOST = inferHostFromExpo() ?? LOCAL_HOST;
 export const API_BASE =
   __DEV__
     ? `http://${LAN_HOST}:8000`
-    : "https://your-production-api-url.com";
+    : "http://ec2-16-170-166-223.eu-north-1.compute.amazonaws.com:8000";
