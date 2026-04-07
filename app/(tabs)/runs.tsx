@@ -7,10 +7,11 @@ import {
   Text,
   View
 } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { deleteRun, fetchRuns, Run } from "../../api/runs";
 import { useAuth } from "../../context/AuthContext";
 
-const PRs = [{label:"Fastest 2 mile", meters:3219},
+const PRs = [
   {label:"Fastest 5k", meters:5000},
   {label:"Fastest 10k",meters:10000},
   {label:"Fastest 15k", meters:15000},
@@ -125,7 +126,27 @@ export default function RunsScreen() {
 
   const toElevation = (meters?: number | null) => {
     if (meters == null) return "-";
-    return `${Math.round(meters)} m`;
+    return `${Math.round(meters)}m`;
+  };
+
+  const formatDistanceValue = (meters?: number) => {
+    if (meters == null) return "-";
+    return (meters / 1000).toFixed(2);
+  };
+
+  const formatTemperature = (temp?: number | null) => {
+    if (temp == null) return "-";
+    return `${Math.round(temp)}°C`;
+  };
+
+  const formatRunDate = (value?: string) => {
+    if (!value) return "-";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[date.getMonth()].toUpperCase()} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   // convert meters and seconds records into km/min pace
@@ -134,7 +155,7 @@ export default function RunsScreen() {
     const secondsPerKm = Math.round(secs / (meters / 1000));
     const minutes = Math.floor(secondsPerKm / 60);
     const seconds = secondsPerKm % 60;
-    return `${minutes}:${String(seconds).padStart(2, "0")} / km`;
+    return `${minutes}'${String(seconds).padStart(2, "0")}" /km`;
   };
 
   // useMemo rechecks longest run only when run array is altered 
@@ -224,40 +245,59 @@ export default function RunsScreen() {
         renderItem={({ item }) => (
           <View style={styles.runItem}>
             <View style={styles.runHeader}>
-              <Text style={styles.runText}>Run #{String(item.id)}</Text>
-              <View>
-                {longestRun?.id === item.id ? (
-                  <View>
-                    <Text>PB Distance</Text>
-                  </View>
-                ) : null}
-                {distancePbs.filter((distance) => distance.run?.id === item.id).map((distance) => (
-                  <View key={distance.label}>
-                    <Text>PB</Text>
-                  </View>
-                ))}
+              <Text style={styles.runTitle}>Run #{String(item.id)}</Text>
+              <Pressable
+                style={[
+                  styles.deleteIconButton,
+                  deletingRunId === item.id ? styles.deleteButtonDisabled : null,
+                ]}
+                onPress={() => handleDeleteRun(item.id)}
+                disabled={deletingRunId === item.id}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete run ${String(item.id)}`}
+              >
+                <MaterialIcons name="delete-outline" size={20} color="#475569" />
+              </Pressable>
+            </View>
+
+            <View style={styles.metricsRow}>
+              <View style={styles.metricItem}>
+                <Text style={styles.metricLabel}>Distance</Text>
+                <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                  {formatDistanceValue(item.distance)}
+                  {item.distance == null ? null : <Text style={styles.metricUnit}> km</Text>}
+                </Text>
+              </View>
+              <View style={styles.metricItem}>
+                <Text style={styles.metricLabel}>Time</Text>
+                <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                  {formatTime(item.time)}
+                </Text>
+              </View>
+              <View style={styles.metricItem}>
+                <Text style={styles.metricLabel}>Avg Pace</Text>
+                <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                  {formatPace(item.distance, item.time)}
+                </Text>
               </View>
             </View>
-            <Text style={{ color: "#444", marginTop: 6 }}>Distance: {toKilometer(item.distance)}</Text>
-            <Text style={{ color: "#444" }}>Time: {formatTime(item.time)}</Text>
-            <Text style={{ color: "#444" }}>Average Pace: {formatPace(item.distance, item.time)}</Text>
-            <Text style={{ color: "#444" }}>Elevation: {toElevation(item.elevation_gain)}</Text>
-            <Text style={{ color: "#444" }}>Temperature: {item.weather_temp}°C</Text>
-            <Text style={{ color: "#444" }}>Precipitation: {item.weather_precip_mm}mm</Text>
-            <Text style={{ color: "#444" }}>Humidity: {item.weather_humidity}%</Text>
-            <Text style={{ color: "#444" }}>Wind: {item.weather_wind_kph} kph</Text>
-            <Pressable
-              style={[
-                styles.deleteButton,
-                deletingRunId === item.id ? styles.deleteButtonDisabled : null,
-              ]}
-              onPress={() => handleDeleteRun(item.id)}
-              disabled={deletingRunId === item.id}
-            >
-              <Text style={styles.deleteButtonText}>
-                {deletingRunId === item.id ? "Deleting..." : "Delete"}
-              </Text>
-            </Pressable>
+
+            <View style={styles.runDivider} />
+
+            <View style={styles.runFooter}>
+              <View style={styles.footerStats}>
+                <View style={styles.footerStat}>
+                  <MaterialIcons name="terrain" size={14} color="#334155" />
+                  <Text style={styles.footerText}>{toElevation(item.elevation_gain)}</Text>
+                </View>
+                <View style={styles.footerStat}>
+                  <MaterialIcons name="thermostat" size={14} color="#334155" />
+                  <Text style={styles.footerText}>{formatTemperature(item.weather_temp)}</Text>
+                </View>
+              </View>
+              <Text style={styles.dateText}>{formatRunDate(item.completed_at)}</Text>
+            </View>
           </View>
         )}
         keyExtractor={(r) => String(r.id)}
@@ -273,7 +313,7 @@ const styles = StyleSheet.create({
     padding: 16, 
     flex: 1, 
     paddingTop: 10,
-    backgroundColor: "#ffffffff" 
+    backgroundColor: "#f3f6ff"
   },
   listContent: { 
     paddingBottom: 24 
@@ -308,31 +348,89 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   runItem: {
-    padding: 12,
+    padding: 20,
     borderRadius: 8,
-    backgroundColor: "#f6f6f6",
-    marginBottom: 8,
+    backgroundColor: "#edf3ff",
+    marginBottom: 22,
   },
   runHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 8,
+    marginBottom: 18,
   },
-  runText: { color: "#111" },
-  deleteButton: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#b3261e",
+  runTitle: {
+    color: "#334155",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  deleteIconButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 28,
+    height: 28,
   },
   deleteButtonDisabled: {
     opacity: 0.6,
   },
-  deleteButtonText: {
-    color: "#fff",
-    fontWeight: "600",
+  metricsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  metricItem: {
+    flex: 1,
+    minWidth: 0,
+  },
+  metricLabel: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  metricValue: {
+    color: "#1f2937",
+    fontSize: 19,
+    fontWeight: "900",
+  },
+  metricUnit: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  runDivider: {
+    height: 1,
+    backgroundColor: "#dce5f5",
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  runFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  footerStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  footerStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  footerText: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dateText: {
+    color: "#334155",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
 });

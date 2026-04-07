@@ -1,7 +1,8 @@
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from "expo-location";
+import { Tabs } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Button, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
+import { Alert, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 import { API_BASE_URL } from "../../api/auth";
 import { predictRunTime } from "../../api/ml";
 import { useAuth } from "../../context/AuthContext";
@@ -79,7 +80,7 @@ export default function RunRecorderScreen() {
   }
 
   const handleStartRun = async () => {
-    const ok = await startTracking();
+    const ok = await startTracking(true);
     if (!ok) return;
 
     // reset and start timer when tracking starts
@@ -168,6 +169,36 @@ export default function RunRecorderScreen() {
     setShapValues(null);
     setRecentPerformanceAdjustmentSeconds(null);
     setShowRecorder(true);
+  };
+
+  const returnToGoalScreen = () => {
+    stopTracking();
+    stop();
+    reset();
+    setShowRecorder(false);
+    setShowPacing(false);
+  };
+
+  const handleBackToGoal = () => {
+    const hasRunProgress = status !== "idle" || seconds > 0 || distance > 0;
+
+    if (!hasRunProgress) {
+      returnToGoalScreen();
+      return;
+    }
+
+    Alert.alert(
+      "Discard run?",
+      "Going back to the goal screen will stop this recording without saving it.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: returnToGoalScreen,
+        },
+      ]
+    );
   };
 
   const handlePauseRun = () => {
@@ -326,6 +357,7 @@ try {
     return (
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.setupContainer}>
+          <Tabs.Screen options={{ headerLeft: undefined }} />
           <Text style={styles.setupTitle}>Got a goal?</Text>
           <Text style={styles.setupSubtitle}>
             Enter your target distance and time or just run.
@@ -349,9 +381,33 @@ try {
 
           <View style={styles.actionButtons}>
             <View style={styles.buttonSpacing}>
-              <Button title={predictingGoal ? "Preparing..." : "Enter"} onPress={handleEnterGoal} disabled={predictingGoal} />
+              <Pressable
+                onPress={handleEnterGoal}
+                disabled={predictingGoal}
+                style={({ pressed }) => [
+                  styles.smallButton,
+                  styles.smallButtonPrimary,
+                  pressed ? styles.smallButtonPressed : null,
+                  predictingGoal ? styles.smallButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.smallButtonText}>
+                  {predictingGoal ? "Preparing..." : "Enter"}
+                </Text>
+              </Pressable>
             </View>
-            <Button title="Just Run" onPress={handleJustRun} />
+            <Pressable
+              onPress={handleJustRun}
+              style={({ pressed }) => [
+                styles.smallButton,
+                styles.smallButtonSecondary,
+                pressed ? styles.smallButtonPressed : null,
+              ]}
+            >
+              <Text style={[styles.smallButtonText, styles.smallButtonSecondaryText]}>
+                Just Run
+              </Text>
+            </Pressable>
           </View>
         </View>
       </TouchableWithoutFeedback>
@@ -483,6 +539,7 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
   if (showPacing && !showRecorder) {
     return (
       <ScrollView contentContainerStyle={styles.pacingContainer}>
+        <Tabs.Screen options={{ headerLeft: undefined }} />
         <Text style={styles.title}>Pick your pacing plan</Text>
 
         {/* tab list user can click through to get different pacing strategies */}
@@ -577,15 +634,32 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
 
         <View style={styles.pacingButtons}>
           <View style={styles.buttonSpacing}>
-            <Button title="Continue" onPress={() => setShowRecorder(true)} />
+            <Pressable
+              onPress={() => setShowRecorder(true)}
+              style={({ pressed }) => [
+                styles.smallButton,
+                styles.smallButtonPrimary,
+                pressed ? styles.smallButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.smallButtonText}>Continue</Text>
+            </Pressable>
           </View>
-          <Button
-            title="Exit"
+          <Pressable
             onPress={() => {
               setShowRecorder(false);
               setShowPacing(false);
             }}
-          />
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.smallButtonSecondary,
+              pressed ? styles.smallButtonPressed : null,
+            ]}
+          >
+            <Text style={[styles.smallButtonText, styles.smallButtonSecondaryText]}>
+              Exit
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     );
@@ -595,6 +669,21 @@ function getPacingStrat(distanceKm: number, totalSeconds: number, pacingType: st
   // *****************************    Run recording screen    *****************************
   return (
     <View style={styles.container}>
+      <Tabs.Screen
+        options={{
+          headerLeft: () => (
+            <Pressable
+              onPress={handleBackToGoal}
+              style={({ pressed }) => [
+                styles.backToGoalButton,
+                pressed ? styles.backToGoalButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.backToGoalButtonText}>Back to Goal</Text>
+            </Pressable>
+          ),
+        }}
+      />
 
       {/* display users goal (if entered) at top of screen */}
       {savedGoal ? (
@@ -767,6 +856,36 @@ const styles = StyleSheet.create({
   buttonSpacing: {
     marginBottom: 12,
   },
+  smallButton: {
+    minHeight: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  smallButtonPrimary: {
+    backgroundColor: "#2563eb",
+  },
+  smallButtonSecondary: {
+    backgroundColor: "#f9fafb",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  smallButtonPressed: {
+    opacity: 0.85,
+  },
+  smallButtonDisabled: {
+    opacity: 0.55,
+  },
+  smallButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  smallButtonSecondaryText: {
+    color: "#1f2937",
+  },
   tabList: {
     flexDirection: "row",
     marginBottom: 24,
@@ -879,6 +998,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1f2937",
     marginBottom: 2,
+  },
+  backToGoalButton: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginLeft: 12,
+    backgroundColor: "#f9fafb",
+  },
+  backToGoalButtonPressed: {
+    opacity: 0.7,
+  },
+  backToGoalButtonText: {
+    color: "#1f2937",
+    fontSize: 14,
+    fontWeight: "700",
   },
   mapWrap: {
     height: 240,
